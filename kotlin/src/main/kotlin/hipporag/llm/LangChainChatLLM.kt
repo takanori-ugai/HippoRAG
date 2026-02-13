@@ -36,6 +36,7 @@ class LangChainChatLLM(
         when (message.role.lowercase()) {
             "system" -> SystemMessage.from(message.content)
             "assistant", "ai" -> AiMessage.from(message.content)
-            else -> UserMessage.from(message.content)
+            "user" -> UserMessage.from(message.content)
+            else -> throw IllegalArgumentException("Unsupported message role: '${message.role}'")
         }
 }

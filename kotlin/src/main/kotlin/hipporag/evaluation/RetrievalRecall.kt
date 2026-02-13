@@ -24,13 +24,14 @@ class RetrievalRecall {
             }
 
             val exampleEvalResult = uniqueKList.associate { k -> "Recall@$k" to 0.0 }.toMutableMap()
+            val goldDocSet = exampleGoldDocs.toSet()
 
             for (k in uniqueKList) {
                 val topKDocs = exampleRetrievedDocs.take(k)
-                val relevantRetrieved = topKDocs.toSet().intersect(exampleGoldDocs.toSet())
+                val relevantRetrieved = topKDocs.toSet().intersect(goldDocSet)
                 val recall =
-                    if (exampleGoldDocs.isNotEmpty()) {
-                        relevantRetrieved.size.toDouble() / exampleGoldDocs.toSet().size.toDouble()
+                    if (goldDocSet.isNotEmpty()) {
+                        relevantRetrieved.size.toDouble() / goldDocSet.size.toDouble()
                     } else {
                         0.0
                     }

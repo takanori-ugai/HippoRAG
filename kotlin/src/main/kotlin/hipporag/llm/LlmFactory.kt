@@ -6,8 +6,9 @@ import dev.langchain4j.model.openai.OpenAiChatModel
 import hipporag.config.BaseConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
 
+private val logger = KotlinLogging.logger {}
+
 fun getLlm(globalConfig: BaseConfig): BaseLLM {
-    val logger = KotlinLogging.logger {}
     val provider = globalConfig.llmProvider?.lowercase()
     val modelName = globalConfig.llmName
     val temperature = globalConfig.temperature

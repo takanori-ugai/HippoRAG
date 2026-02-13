@@ -29,13 +29,13 @@ import hipporag.utils.TripleRawOutput
 import hipporag.utils.computeMdHashId
 import hipporag.utils.extractEntityNodes
 import hipporag.utils.flattenFacts
+import hipporag.utils.jsonWithDefaults
 import hipporag.utils.minMaxNormalize
 import hipporag.utils.parseTripleString
 import hipporag.utils.reformatOpenieResults
 import hipporag.utils.retrieveKnn
 import hipporag.utils.textProcessing
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.Locale
 import kotlin.math.min
@@ -129,10 +129,22 @@ class HippoRag(
 
         openie =
             when (globalConfig.openieMode) {
-                "online" -> OpenIE(llmModel)
-                "offline" -> VllmOfflineOpenIE(llmModel)
-                "Transformers-offline" -> TransformersOfflineOpenIE(llmModel)
-                else -> OpenIE(llmModel)
+                "online" -> {
+                    OpenIE(llmModel)
+                }
+
+                "offline" -> {
+                    VllmOfflineOpenIE(llmModel)
+                }
+
+                "Transformers-offline" -> {
+                    TransformersOfflineOpenIE(llmModel)
+                }
+
+                else -> {
+                    logger.warn { "Unknown openieMode '${globalConfig.openieMode}', defaulting to 'online'." }
+                    OpenIE(llmModel)
+                }
             }
 
         graph = initializeGraph()
@@ -141,7 +153,7 @@ class HippoRag(
             if (globalConfig.openieMode == "offline") {
                 null
             } else {
-                getEmbeddingModel(globalConfig.embeddingModelName).create(globalConfig, globalConfig.embeddingModelName)
+                getEmbeddingModel().create(globalConfig, globalConfig.embeddingModelName)
             }
 
         chunkEmbeddingStore =
@@ -211,7 +223,8 @@ class HippoRag(
         logger.info { "Performing OpenIE" }
 
         if (globalConfig.openieMode == "offline") {
-            preOpenie(docs)
+            logger.info { "Offline OpenIE mode: run preOpenie() separately before calling index()." }
+            return
         }
 
         chunkEmbeddingStore.insertStrings(docs)
@@ -417,27 +430,43 @@ class HippoRag(
     }
 
     fun ragQa(
-        queries: List<Any>,
+        queries: List<String>,
         goldDocs: List<List<String>>? = null,
         goldAnswers: List<List<String>>? = null,
     ): RagQaResult {
+        val (retrieved, retrievalResult) =
+            retrieve(
+                queries = queries,
+                goldDocs = goldDocs,
+            )
+        return ragQaFromSolutions(
+            querySolutions = retrieved,
+            goldDocs = goldDocs,
+            goldAnswers = goldAnswers,
+            overallRetrievalResult = retrievalResult,
+        )
+    }
+
+    fun ragQaWithSolutions(
+        queries: List<QuerySolution>,
+        goldDocs: List<List<String>>? = null,
+        goldAnswers: List<List<String>>? = null,
+    ): RagQaResult =
+        ragQaFromSolutions(
+            querySolutions = queries,
+            goldDocs = goldDocs,
+            goldAnswers = goldAnswers,
+            overallRetrievalResult = null,
+        )
+
+    private fun ragQaFromSolutions(
+        querySolutions: List<QuerySolution>,
+        goldDocs: List<List<String>>?,
+        goldAnswers: List<List<String>>?,
+        overallRetrievalResult: Map<String, Double>?,
+    ): RagQaResult {
         val qaEmEvaluator = if (goldAnswers != null) QAExactMatch() else null
         val qaF1Evaluator = if (goldAnswers != null) QAF1Score() else null
-
-        var querySolutions: List<QuerySolution>
-        var overallRetrievalResult: Map<String, Double>? = null
-
-        if (queries.isNotEmpty() && queries.first() !is QuerySolution) {
-            val (retrieved, retrievalResult) =
-                retrieve(
-                    queries = queries.map { it as String },
-                    goldDocs = goldDocs,
-                )
-            querySolutions = retrieved
-            overallRetrievalResult = retrievalResult
-        } else {
-            querySolutions = queries.map { it as QuerySolution }
-        }
 
         val (qaSolutions, allResponseMessage, allMetadata) = qa(querySolutions)
 
@@ -543,74 +572,34 @@ class HippoRag(
     }
 
     fun ragQaDpr(
-        queries: List<Any>,
+        queries: List<String>,
         goldDocs: List<List<String>>? = null,
         goldAnswers: List<List<String>>? = null,
     ): RagQaResult {
-        val qaEmEvaluator = if (goldAnswers != null) QAExactMatch() else null
-        val qaF1Evaluator = if (goldAnswers != null) QAF1Score() else null
-
-        var querySolutions: List<QuerySolution>
-        var overallRetrievalResult: Map<String, Double>? = null
-
-        if (queries.isNotEmpty() && queries.first() !is QuerySolution) {
-            val (retrieved, retrievalResult) =
-                retrieveDpr(
-                    queries = queries.map { it as String },
-                    goldDocs = goldDocs,
-                )
-            querySolutions = retrieved
-            overallRetrievalResult = retrievalResult
-        } else {
-            querySolutions = queries.map { it as QuerySolution }
-        }
-
-        val (qaSolutions, allResponseMessage, allMetadata) = qa(querySolutions)
-
-        if (goldAnswers != null && qaEmEvaluator != null && qaF1Evaluator != null) {
-            val (overallQaEm, _) =
-                qaEmEvaluator.calculateMetricScores(
-                    goldAnswers = goldAnswers,
-                    predictedAnswers = qaSolutions.map { it.answer ?: "" },
-                    aggregationFn = { values -> values.maxOrNull() ?: 0.0 },
-                )
-            val (overallQaF1, _) =
-                qaF1Evaluator.calculateMetricScores(
-                    goldAnswers = goldAnswers,
-                    predictedAnswers = qaSolutions.map { it.answer ?: "" },
-                    aggregationFn = { values -> values.maxOrNull() ?: 0.0 },
-                )
-
-            val overallQaResults =
-                (overallQaEm + overallQaF1).mapValues { (_, v) ->
-                    String.format(Locale.US, "%.4f", v).toDouble()
-                }
-            logger.info { "Evaluation results for QA: $overallQaResults" }
-
-            qaSolutions.forEachIndexed { idx, q ->
-                q.goldAnswers = goldAnswers[idx].toMutableList()
-                if (goldDocs != null) {
-                    q.goldDocs = goldDocs[idx].toMutableList()
-                }
-            }
-
-            return RagQaResult(
-                solutions = qaSolutions,
-                responseMessages = allResponseMessage,
-                metadata = allMetadata,
-                overallRetrievalResult = overallRetrievalResult,
-                overallQaResults = overallQaResults,
+        val (retrieved, retrievalResult) =
+            retrieveDpr(
+                queries = queries,
+                goldDocs = goldDocs,
             )
-        }
-
-        return RagQaResult(
-            solutions = qaSolutions,
-            responseMessages = allResponseMessage,
-            metadata = allMetadata,
-            overallRetrievalResult = overallRetrievalResult,
-            overallQaResults = null,
+        return ragQaFromSolutions(
+            querySolutions = retrieved,
+            goldDocs = goldDocs,
+            goldAnswers = goldAnswers,
+            overallRetrievalResult = retrievalResult,
         )
     }
+
+    fun ragQaDprWithSolutions(
+        queries: List<QuerySolution>,
+        goldDocs: List<List<String>>? = null,
+        goldAnswers: List<List<String>>? = null,
+    ): RagQaResult =
+        ragQaFromSolutions(
+            querySolutions = queries,
+            goldDocs = goldDocs,
+            goldAnswers = goldAnswers,
+            overallRetrievalResult = null,
+        )
 
     fun qa(queries: List<QuerySolution>): Triple<List<QuerySolution>, List<String>, List<Map<String, Any?>>> {
         val allQaMessages = mutableListOf<List<Message>>()
@@ -667,7 +656,7 @@ class HippoRag(
         return Triple(querySolutions, allResponseMessage, allMetadata)
     }
 
-    fun addFactEdges(
+    private fun addFactEdges(
         chunkIds: List<String>,
         chunkTriples: List<List<List<String>>>,
     ) {
@@ -698,7 +687,7 @@ class HippoRag(
         }
     }
 
-    fun addPassageEdges(
+    private fun addPassageEdges(
         chunkIds: List<String>,
         chunkTripleEntities: List<List<String>>,
     ): Int {
@@ -720,7 +709,7 @@ class HippoRag(
         return numNewChunks
     }
 
-    fun addSynonymyEdges() {
+    private fun addSynonymyEdges() {
         logger.info { "Expanding graph with synonymy edges" }
 
         val entityIdToRow = entityEmbeddingStore.getAllIdToRows()
@@ -768,13 +757,13 @@ class HippoRag(
         }
     }
 
-    fun loadExistingOpenie(chunkKeys: List<String>): Pair<MutableList<OpenieDoc>, Set<String>> {
+    private fun loadExistingOpenie(chunkKeys: List<String>): Pair<MutableList<OpenieDoc>, Set<String>> {
         val chunkKeysToSave = mutableSetOf<String>()
 
         val openieFile = File(openieResultsPath)
         val allOpenieInfo =
             if (!globalConfig.forceOpenieFromScratch && openieFile.exists()) {
-                val json = Json { ignoreUnknownKeys = true }
+                val json = jsonWithDefaults { ignoreUnknownKeys = true }
                 val openieResults = json.decodeFromString(OpenieResults.serializer(), openieFile.readText())
                 val renamed =
                     openieResults.docs.map { doc ->
@@ -797,7 +786,7 @@ class HippoRag(
         return allOpenieInfo to chunkKeysToSave
     }
 
-    fun mergeOpenieResults(
+    private fun mergeOpenieResults(
         allOpenieInfo: MutableList<OpenieDoc>,
         chunksToSave: Map<String, EmbeddingRow>,
         nerResultsDict: Map<String, NerRawOutput>,
@@ -823,7 +812,7 @@ class HippoRag(
         return allOpenieInfo
     }
 
-    fun saveOpenieResults(allOpenieInfo: List<OpenieDoc>) {
+    private fun saveOpenieResults(allOpenieInfo: List<OpenieDoc>) {
         val sumPhraseChars = allOpenieInfo.sumOf { doc -> doc.extractedEntities.sumOf { it.length } }
         val sumPhraseWords = allOpenieInfo.sumOf { doc -> doc.extractedEntities.sumOf { it.split(" ").size } }
         val numPhrases = allOpenieInfo.sumOf { it.extractedEntities.size }
@@ -839,13 +828,13 @@ class HippoRag(
                     avgEntWords = round4(avgEntWords),
                 )
 
-            val json = Json { prettyPrint = false }
+            val json = jsonWithDefaults { prettyPrint = false }
             File(openieResultsPath).writeText(json.encodeToString(OpenieResults.serializer(), openieDict))
             logger.info { "OpenIE results saved to $openieResultsPath" }
         }
     }
 
-    fun augmentGraph() {
+    private fun augmentGraph() {
         addNewNodes()
         addNewEdges()
 
@@ -853,8 +842,8 @@ class HippoRag(
         logger.info { getGraphInfo().toString() }
     }
 
-    fun addNewNodes() {
-        val existingNodes = graph.vertexNames().associateWith { name -> name }
+    private fun addNewNodes() {
+        val existingNodes = graph.vertexNames().toSet()
 
         val entityToRow = entityEmbeddingStore.getAllIdToRows()
         val passageToRow = chunkEmbeddingStore.getAllIdToRows()
@@ -877,7 +866,7 @@ class HippoRag(
         }
     }
 
-    fun addNewEdges() {
+    private fun addNewEdges() {
         val graphAdjList = mutableMapOf<String, MutableMap<String, Double>>()
         val graphInverseAdjList = mutableMapOf<String, MutableMap<String, Double>>()
 
@@ -911,13 +900,13 @@ class HippoRag(
         graph.addEdges(validEdges, validWeights)
     }
 
-    fun saveIgraph() {
+    private fun saveIgraph() {
         logger.info { "Writing graph with ${graph.vcount()} nodes, ${graph.ecount()} edges" }
         graph.save(File(workingDir, "graph.json"))
         logger.info { "Saving graph completed!" }
     }
 
-    fun getGraphInfo(): Map<String, Int> {
+    private fun getGraphInfo(): Map<String, Int> {
         val graphInfo = mutableMapOf<String, Int>()
 
         val phraseNodesKeys = entityEmbeddingStore.getAllIds()
@@ -945,7 +934,7 @@ class HippoRag(
         return graphInfo
     }
 
-    fun prepareRetrievalObjects() {
+    private fun prepareRetrievalObjects() {
         logger.info { "Preparing for fast retrieval." }
         logger.info { "Loading keys." }
 
@@ -1067,7 +1056,7 @@ class HippoRag(
         readyToRetrieve = true
     }
 
-    fun getQueryEmbeddings(queries: List<Any>) {
+    private fun getQueryEmbeddings(queries: List<Any>) {
         val allQueryStrings = mutableListOf<String>()
         for (query in queries) {
             when (query) {
@@ -1118,7 +1107,7 @@ class HippoRag(
         }
     }
 
-    fun getFactScores(query: String): DoubleArray {
+    private fun getFactScores(query: String): DoubleArray {
         val queryEmbedding =
             queryToEmbedding.getValue("triple")[query]
                 ?: embeddingModel
@@ -1146,7 +1135,7 @@ class HippoRag(
         return minMaxNormalize(scores)
     }
 
-    fun densePassageRetrieval(query: String): Pair<List<Int>, DoubleArray> {
+    private fun densePassageRetrieval(query: String): Pair<List<Int>, DoubleArray> {
         val queryEmbedding =
             queryToEmbedding.getValue("passage")[query]
                 ?: embeddingModel
@@ -1168,7 +1157,7 @@ class HippoRag(
         return sortedDocIds to sortedScores
     }
 
-    fun getTopKWeights(
+    private fun getTopKWeights(
         linkTopK: Int,
         allPhraseWeights: DoubleArray,
         linkingScoreMap: MutableMap<String, Double>,
@@ -1192,7 +1181,7 @@ class HippoRag(
         return allPhraseWeights to filteredMap
     }
 
-    fun graphSearchWithFactEntities(
+    private fun graphSearchWithFactEntities(
         query: String,
         linkTopK: Int,
         queryFactScores: DoubleArray,
@@ -1303,7 +1292,7 @@ class HippoRag(
         return pprSortedDocIds to pprSortedDocScores
     }
 
-    fun rerankFacts(
+    private fun rerankFacts(
         query: String,
         queryFactScores: DoubleArray,
     ): Triple<List<Int>, List<List<String>>, Map<String, Any?>> {
@@ -1365,7 +1354,7 @@ class HippoRag(
         }
     }
 
-    fun runPpr(
+    private fun runPpr(
         resetProb: DoubleArray,
         damping: Double = 0.5,
     ): Pair<List<Int>, DoubleArray> {
@@ -1389,10 +1378,12 @@ class HippoRag(
     ): DoubleArray {
         val result = DoubleArray(matrix.size)
         for (i in matrix.indices) {
-            var sum = 0.0
             val row = matrix[i]
-            val len = min(row.size, vector.size)
-            for (j in 0 until len) {
+            require(row.size == vector.size) {
+                "Matrix row $i size (${row.size}) does not match vector size (${vector.size})"
+            }
+            var sum = 0.0
+            for (j in row.indices) {
                 sum += row[j] * vector[j]
             }
             result[i] = sum

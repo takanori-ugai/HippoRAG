@@ -3,8 +3,9 @@ package hipporag.rerank
 import hipporag.llm.BaseLLM
 import hipporag.prompts.BEST_DSPY_PROMPT_JSON
 import hipporag.utils.Message
+import hipporag.utils.extractJsonObjectWithKey
+import hipporag.utils.jsonWithDefaults
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -19,7 +20,7 @@ class DSPyFilter(
     private val rerankDspyFilePath: String? = null,
 ) {
     private val logger = KotlinLogging.logger {}
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = jsonWithDefaults { ignoreUnknownKeys = true }
     private val messageTemplate: List<Message> = buildTemplate()
 
     private val oneInputTemplate =
@@ -91,7 +92,7 @@ class DSPyFilter(
     }
 
     private fun parseFacts(response: String): List<List<String>> {
-        val jsonObj = extractJsonObjectWithKey(response, "fact") ?: return emptyList()
+        val jsonObj = extractJsonObjectWithKey(response, "fact", json) ?: return emptyList()
         val factArray = jsonObj["fact"]?.jsonArray ?: return emptyList()
         val result = mutableListOf<List<String>>()
         for (factEl in factArray) {
@@ -102,15 +103,6 @@ class DSPyFilter(
             }
         }
         return result
-    }
-
-    private fun extractJsonObjectWithKey(
-        response: String,
-        key: String,
-    ): JsonObject? {
-        val pattern = Regex("\\{[^{}]*\"$key\"\\s*:\\s*\\[[\\s\\S]*?\\][^{}]*\\}", RegexOption.DOT_MATCHES_ALL)
-        val match = pattern.find(response) ?: return null
-        return runCatching { json.parseToJsonElement(match.value).jsonObject }.getOrNull()
     }
 
     private fun matchFactsToCandidates(

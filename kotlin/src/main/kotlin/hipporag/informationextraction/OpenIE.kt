@@ -7,7 +7,9 @@ import hipporag.prompts.PromptTemplateManager
 import hipporag.utils.EmbeddingRow
 import hipporag.utils.NerRawOutput
 import hipporag.utils.TripleRawOutput
+import hipporag.utils.extractJsonObjectWithKey
 import hipporag.utils.filterInvalidTriples
+import hipporag.utils.jsonWithDefaults
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -31,7 +33,7 @@ class OpenIE(
         PromptTemplateManager(
             roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
         )
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
     private fun ner(
         chunkKey: String,
@@ -112,7 +114,7 @@ class VllmOfflineOpenIE(
         PromptTemplateManager(
             roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
         )
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
     override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> {
         val nerResults = mutableMapOf<String, NerRawOutput>()
@@ -193,7 +195,7 @@ class TransformersOfflineOpenIE(
         PromptTemplateManager(
             roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
         )
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
     override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> {
         val nerResults = mutableMapOf<String, NerRawOutput>()
@@ -299,20 +301,6 @@ private fun extractTriplesFromResponse(
         }
     }
     return triples
-}
-
-private fun extractJsonObjectWithKey(
-    response: String,
-    key: String,
-    json: Json,
-): JsonObject? {
-    val pattern = Regex("\\{[^{}]*\"$key\"\\s*:\\s*\\[[\\s\\S]*?\\][^{}]*\\}", RegexOption.DOT_MATCHES_ALL)
-    val match = pattern.find(response) ?: return null
-    return try {
-        json.parseToJsonElement(match.value).jsonObject
-    } catch (_: Exception) {
-        null
-    }
 }
 
 private fun JsonElement.asJsonArrayOrNull(): JsonArray? = runCatching { this.jsonArray }.getOrNull()

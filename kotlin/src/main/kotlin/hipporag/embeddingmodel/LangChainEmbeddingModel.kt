@@ -13,7 +13,11 @@ class LangChainEmbeddingModel(
         norm: Boolean,
     ): Array<DoubleArray> {
         if (texts.isEmpty()) return emptyArray()
-        val segments = texts.map { TextSegment.from(it) }
+        val segments =
+            texts.map { text ->
+                val prefixed = if (instruction != null) "$instruction $text" else text
+                TextSegment.from(prefixed)
+            }
         val result = model.embedAll(segments)
         val embeddings =
             result.content().map { embedding ->

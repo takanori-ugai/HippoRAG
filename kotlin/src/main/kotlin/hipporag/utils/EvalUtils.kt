@@ -1,14 +1,16 @@
 package hipporag.utils
 
 private const val PUNCTUATION_CHARS = "!\"#$%&'()*+,-./:;<>?@[\\]^_`{|}~"
+private val ARTICLES_REGEX = Regex("\\b(a|an|the)\\b")
+private val WHITESPACE_REGEX = Regex("\\s+")
 
 fun normalizeAnswer(answer: String): String {
-    fun removeArticles(text: String): String = Regex("\\b(a|an|the)\\b").replace(text, " ")
+    fun removeArticles(text: String): String = ARTICLES_REGEX.replace(text, " ")
 
     fun whiteSpaceFix(text: String): String =
         text
             .trim()
-            .split(Regex("\\s+"))
+            .split(WHITESPACE_REGEX)
             .filter { it.isNotEmpty() }
             .joinToString(" ")
 

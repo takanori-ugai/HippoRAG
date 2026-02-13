@@ -11,7 +11,7 @@ fun filterInvalidTriples(triples: List<List<String>>): List<List<String>> {
 
     for (triple in triples) {
         if (triple.size != 3) continue
-        val validTriple = triple.map { it }
+        val validTriple = triple.toList()
         if (uniqueTriples.add(validTriple)) {
             validTriples.add(validTriple)
         }
@@ -110,10 +110,7 @@ fun <T> retryWithBackoff(
         }
         attempt += 1
     }
-    if (lastError != null) {
-        throw lastError
-    }
-    error("retryWithBackoff failed without exception.")
+    error("retryWithBackoff: unreachable")
 }
 
 fun convertFormatToTemplate(

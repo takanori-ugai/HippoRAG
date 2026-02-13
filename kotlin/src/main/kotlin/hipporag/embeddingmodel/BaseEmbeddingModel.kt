@@ -17,4 +17,4 @@ interface EmbeddingModelFactory {
     ): BaseEmbeddingModel
 }
 
-fun getEmbeddingModel(name: String): EmbeddingModelFactory = LangChainEmbeddingFactory(name)
+fun getEmbeddingModel(): EmbeddingModelFactory = LangChainEmbeddingFactory()

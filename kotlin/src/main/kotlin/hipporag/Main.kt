@@ -1,22 +1,25 @@
 package hipporag
 
 import hipporag.config.BaseConfig
+import hipporag.utils.jsonWithDefaults
 import hipporag.utils.loadConfigFromJson
 import hipporag.utils.stringToBool
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     val parsed = Args.parse(args)
 
-    val json = Json { ignoreUnknownKeys = true }
-    val docs = json.decodeFromString(ListSerializer(String.serializer()), File(parsed.docsPath).readText())
-    val queries = json.decodeFromString(ListSerializer(String.serializer()), File(parsed.queriesPath).readText())
+    val json = jsonWithDefaults { ignoreUnknownKeys = true }
+    val docs = readStringListJson(json, parsed.docsPath, "docs")
+    val queries = readStringListJson(json, parsed.queriesPath, "queries")
 
-    val config = parsed.configPath?.let { loadConfigFromJson(it) } ?: BaseConfig()
+    val config =
+        parsed.configPath
+            ?.let { loadConfigFromJson(resolveSafeFile(it, "config").path) }
+            ?: BaseConfig()
     parsed.saveDir?.let { config.saveDir = it }
     parsed.llmName?.let { config.llmName = it }
     parsed.llmBaseUrl?.let { config.llmBaseUrl = it }
@@ -29,6 +32,34 @@ fun main(args: Array<String>) {
     val hipporag = HippoRag(globalConfig = config)
     hipporag.index(docs)
     hipporag.ragQa(queries = queries, goldDocs = null, goldAnswers = null)
+}
+
+private fun readStringListJson(
+    json: kotlinx.serialization.json.Json,
+    path: String,
+    label: String,
+): List<String> =
+    json.decodeFromString(
+        ListSerializer(String.serializer()),
+        resolveSafeFile(path, label).readText(),
+    )
+
+private fun resolveSafeFile(
+    path: String,
+    label: String,
+): File {
+    val baseDir = File(".").canonicalFile
+    val file = File(path).canonicalFile
+    val basePath = baseDir.path + File.separator
+    if (!file.path.startsWith(basePath)) {
+        System.err.println("Refusing to read $label outside working directory: ${file.path}")
+        exitProcess(1)
+    }
+    if (!file.isFile) {
+        System.err.println("Missing or invalid $label file: ${file.path}")
+        exitProcess(1)
+    }
+    return file
 }
 
 private data class Args(
@@ -51,14 +82,15 @@ private data class Args(
             while (i < args.size) {
                 val key = args[i]
                 if (!key.startsWith("--") || i + 1 >= args.size) {
-                    usageAndExit()
+                    val message = if (key.startsWith("--")) "Missing value for $key." else "Unexpected argument: $key."
+                    usageAndExit(message)
                 }
                 map[key.removePrefix("--")] = args[i + 1]
                 i += 2
             }
 
-            val docs = map["docs"] ?: usageAndExit()
-            val queries = map["queries"] ?: usageAndExit()
+            val docs = map["docs"] ?: usageAndExit("Missing required --docs.")
+            val queries = map["queries"] ?: usageAndExit("Missing required --queries.")
 
             return Args(
                 docsPath = docs,
@@ -75,7 +107,10 @@ private data class Args(
             )
         }
 
-        private fun usageAndExit(): Nothing {
+        private fun usageAndExit(reason: String? = null): Nothing {
+            if (reason != null) {
+                System.err.println(reason)
+            }
             System.err.println(
                 "Usage: --docs <docs.json> --queries <queries.json> [--config <config.json>] [--save_dir outputs] " +
                     "[--llm_name gpt-4o-mini] [--llm_base_url <url>] [--embedding_name <name>] " +

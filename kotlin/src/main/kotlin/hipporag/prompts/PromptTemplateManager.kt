@@ -1,10 +1,12 @@
 package hipporag.prompts
 
 import hipporag.utils.Message
+import io.github.oshai.kotlinlogging.KotlinLogging
 
 class PromptTemplateManager(
     private val roleMapping: Map<String, String>,
 ) {
+    private val logger = KotlinLogging.logger {}
     private val templates: Map<String, PromptTemplate> = PromptTemplates.templates
 
     fun render(
@@ -44,7 +46,10 @@ class PromptTemplateManager(
         val pattern = Regex("""\$\{(\w+)\}""")
         return pattern.replace(template) { match ->
             val key = match.groupValues[1]
-            variables[key] ?: match.value
+            variables[key] ?: run {
+                logger.warn { "Missing prompt variable '$key'." }
+                match.value
+            }
         }
     }
 }

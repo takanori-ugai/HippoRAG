@@ -104,6 +104,7 @@ fun allValuesOfSameLength(data: Map<*, *>): Boolean {
     if (!values.hasNext()) return true
     val first = values.next()
     val firstLength = lengthOf(first)
+    if (firstLength == null) return false
     return values.asSequence().all { lengthOf(it) == firstLength }
 }
 

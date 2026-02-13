@@ -1,7 +1,7 @@
 package hipporag.utils
 
 import hipporag.config.BaseConfig
-import kotlinx.serialization.json.Json
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -12,7 +12,7 @@ import java.io.File
 
 fun loadConfigFromJson(path: String): BaseConfig {
     val text = File(path).readText()
-    val json = Json { ignoreUnknownKeys = true }
+    val json = jsonWithDefaults { ignoreUnknownKeys = true }
     val element = json.parseToJsonElement(text)
     val config = BaseConfig()
     if (element is JsonObject) {
@@ -25,6 +25,8 @@ fun applyConfigOverrides(
     config: BaseConfig,
     overrides: JsonObject,
 ): BaseConfig {
+    val logger = KotlinLogging.logger {}
+
     fun str(key: String): String? = overrides[key]?.jsonPrimitive?.contentOrNull
 
     fun bool(key: String): Boolean? = overrides[key]?.jsonPrimitive?.booleanOrNull
@@ -133,6 +135,7 @@ fun applyConfigOverrides(
             "preprocessChunkOverlapTokenSize" -> int(entry.key)?.let { config.preprocessChunkOverlapTokenSize = it }
             "preprocessChunkMaxTokenSize" -> int(entry.key)?.let { config.preprocessChunkMaxTokenSize = it }
             "preprocessChunkFunc" -> str(entry.key)?.let { config.preprocessChunkFunc = it }
+            else -> logger.debug { "Unknown config key '${entry.key}' ignored." }
         }
     }
 

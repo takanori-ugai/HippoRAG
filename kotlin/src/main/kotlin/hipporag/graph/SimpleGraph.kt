@@ -1,7 +1,7 @@
 package hipporag.graph
 
+import hipporag.utils.jsonWithDefaults
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.io.File
 
 class SimpleGraph(
@@ -48,16 +48,36 @@ class SimpleGraph(
     }
 
     fun deleteVertices(names: List<String>) {
-        val toRemove = names.mapNotNull { nameToIndex[it] }.sortedDescending()
-        for (idx in toRemove) {
-            vertices.removeAt(idx)
-            edges.removeAll { it.source == idx || it.target == idx }
-        }
+        if (names.isEmpty()) return
+        val removeSet = names.toSet()
+        val survivingEdges =
+            edges.mapNotNull { edge ->
+                val sourceName = vertices.getOrNull(edge.source)?.get("name")?.toString()
+                val targetName = vertices.getOrNull(edge.target)?.get("name")?.toString()
+                if (sourceName == null || targetName == null) {
+                    null
+                } else if (sourceName in removeSet || targetName in removeSet) {
+                    null
+                } else {
+                    Triple(sourceName, targetName, edge.weight)
+                }
+            }
+
+        vertices.removeAll { it["name"]?.toString() in removeSet }
+        edges.clear()
         nameToIndex.clear()
         vertices.forEachIndexed { idx, attrs ->
             val name = attrs["name"]?.toString()
             if (name != null) {
                 nameToIndex[name] = idx
+            }
+        }
+
+        for ((sourceName, targetName, weight) in survivingEdges) {
+            val sourceIdx = nameToIndex[sourceName]
+            val targetIdx = nameToIndex[targetName]
+            if (sourceIdx != null && targetIdx != null) {
+                edges.add(Edge(sourceIdx, targetIdx, weight))
             }
         }
     }
@@ -115,13 +135,13 @@ class SimpleGraph(
                 vertices = vertices.map { it.mapValues { v -> v.value.toString() } },
                 edges = edges.map { EdgeData(it.source, it.target, it.weight) },
             )
-        val json = Json { prettyPrint = false }
+        val json = jsonWithDefaults { prettyPrint = false }
         file.writeText(json.encodeToString(GraphData.serializer(), data))
     }
 
     companion object {
         fun load(file: File): SimpleGraph {
-            val json = Json { ignoreUnknownKeys = true }
+            val json = jsonWithDefaults { ignoreUnknownKeys = true }
             val data = json.decodeFromString(GraphData.serializer(), file.readText())
             val graph = SimpleGraph(data.directed)
             val attributes = mutableMapOf<String, MutableList<Any>>()

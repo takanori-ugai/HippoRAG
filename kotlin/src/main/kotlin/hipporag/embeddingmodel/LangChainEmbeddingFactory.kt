@@ -7,9 +7,9 @@ import dev.langchain4j.model.openai.OpenAiEmbeddingModel
 import hipporag.config.BaseConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
 
-class LangChainEmbeddingFactory(
-    private val modelName: String,
-) : EmbeddingModelFactory {
+class LangChainEmbeddingFactory : EmbeddingModelFactory {
+    private val logger = KotlinLogging.logger {}
+
     override fun create(
         globalConfig: BaseConfig,
         embeddingModelName: String,
@@ -22,7 +22,6 @@ class LangChainEmbeddingFactory(
         globalConfig: BaseConfig,
         embeddingModelName: String,
     ): EmbeddingModel {
-        val logger = KotlinLogging.logger {}
         val provider = globalConfig.embeddingProvider?.lowercase()
         val unsupportedProviders =
             setOf(

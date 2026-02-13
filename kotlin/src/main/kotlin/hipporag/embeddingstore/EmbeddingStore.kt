@@ -2,9 +2,10 @@ package hipporag.embeddingstore
 
 import hipporag.embeddingmodel.BaseEmbeddingModel
 import hipporag.utils.EmbeddingRow
+import hipporag.utils.computeMdHashId
+import hipporag.utils.jsonWithDefaults
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.io.File
 
 class EmbeddingStore(
@@ -48,10 +49,7 @@ class EmbeddingStore(
         if (nodesDict.isEmpty()) return emptyMap()
 
         val missingIds = nodesDict.keys.filter { it !in hashIdToRow.keys }
-        return missingIds.associateWith { id ->
-            val row = nodesDict.getValue(id)
-            EmbeddingRow(hashId = id, content = row.content)
-        }
+        return missingIds.associateWith { id -> nodesDict.getValue(id) }
     }
 
     fun insertStrings(texts: List<String>) {
@@ -115,6 +113,7 @@ class EmbeddingStore(
             this.embeddings.removeAt(idx)
         }
 
+        rebuildIndexes()
         logger.info { "Saving record after deletion." }
         saveData()
     }
@@ -139,7 +138,7 @@ class EmbeddingStore(
             return
         }
 
-        val json = Json { ignoreUnknownKeys = true }
+        val json = jsonWithDefaults { ignoreUnknownKeys = true }
         val data = json.decodeFromString(EmbeddingStoreData.serializer(), file.readText())
 
         hashIds.clear()
@@ -161,7 +160,7 @@ class EmbeddingStore(
                 texts = texts.toList(),
                 embeddings = embeddings.map { it.toList() },
             )
-        val json = Json { prettyPrint = false }
+        val json = jsonWithDefaults { prettyPrint = false }
         File(filename).writeText(json.encodeToString(EmbeddingStoreData.serializer(), data))
         rebuildIndexes()
         logger.info { "Saved ${hashIds.size} records to $filename" }
@@ -179,11 +178,6 @@ class EmbeddingStore(
             hashIdToRow[hashId] = EmbeddingRow(hashId = hashId, content = text)
         }
     }
-
-    private fun computeMdHashId(
-        content: String,
-        prefix: String = "",
-    ): String = hipporag.utils.computeMdHashId(content, prefix)
 }
 
 @Serializable

@@ -3,6 +3,9 @@ package hipporag.utils
 import smile.neighbor.LSH
 import kotlin.math.sqrt
 
+/**
+ * Returns up to `k` nearest neighbors per query. LSH search may return fewer than `k`.
+ */
 fun retrieveKnn(
     queryIds: List<String>,
     keyIds: List<String>,

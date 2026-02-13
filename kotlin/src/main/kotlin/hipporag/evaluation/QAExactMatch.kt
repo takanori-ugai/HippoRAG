@@ -16,9 +16,10 @@ class QAExactMatch {
         var totalEm = 0.0
 
         for ((goldList, predicted) in goldAnswers.zip(predictedAnswers)) {
+            val normalizedPredicted = normalizeAnswer(predicted)
             val emScores =
                 goldList.map { gold ->
-                    if (normalizeAnswer(gold) == normalizeAnswer(predicted)) 1.0 else 0.0
+                    if (normalizeAnswer(gold) == normalizedPredicted) 1.0 else 0.0
                 }
             val aggregatedEm = aggregationFn(emScores)
             exampleEvalResults.add(mapOf("ExactMatch" to aggregatedEm))

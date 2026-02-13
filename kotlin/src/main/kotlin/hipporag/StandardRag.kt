@@ -48,11 +48,22 @@ class StandardRag(
         )
 
     fun ragQa(
-        queries: List<Any>,
+        queries: List<String>,
         goldDocs: List<List<String>>? = null,
         goldAnswers: List<List<String>>? = null,
     ): RagQaResult =
         hippoRag.ragQaDpr(
+            queries = queries,
+            goldDocs = goldDocs,
+            goldAnswers = goldAnswers,
+        )
+
+    fun ragQaWithSolutions(
+        queries: List<QuerySolution>,
+        goldDocs: List<List<String>>? = null,
+        goldAnswers: List<List<String>>? = null,
+    ): RagQaResult =
+        hippoRag.ragQaDprWithSolutions(
             queries = queries,
             goldDocs = goldDocs,
             goldAnswers = goldAnswers,
