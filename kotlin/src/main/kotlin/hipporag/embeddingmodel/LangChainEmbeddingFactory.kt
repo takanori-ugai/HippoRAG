@@ -48,7 +48,9 @@ class LangChainEmbeddingFactory : EmbeddingModelFactory {
         }
         return when {
             globalConfig.azureEmbeddingEndpoint != null -> {
-                val apiKey = globalConfig.azureApiKey ?: System.getenv("AZURE_OPENAI_API_KEY")
+                val apiKey =
+                    globalConfig.azureApiKey ?: System.getenv("AZURE_OPENAI_API_KEY")
+                        ?: error("Azure API key not found. Set azureApiKey in config or AZURE_OPENAI_API_KEY env var.")
                 val deployment = globalConfig.azureEmbeddingDeploymentName ?: embeddingModelName
                 AzureOpenAiEmbeddingModel
                     .builder()
@@ -58,7 +60,20 @@ class LangChainEmbeddingFactory : EmbeddingModelFactory {
                     .build()
             }
 
-            provider == "ollama" || (globalConfig.embeddingBaseUrl?.contains("ollama") == true) -> {
+            provider == "ollama" -> {
+                val baseUrl = globalConfig.ollamaBaseUrl ?: globalConfig.embeddingBaseUrl ?: "http://localhost:11434"
+                val model = globalConfig.ollamaEmbeddingModelName ?: embeddingModelName
+                OllamaEmbeddingModel
+                    .builder()
+                    .baseUrl(baseUrl)
+                    .modelName(model)
+                    .build()
+            }
+
+            globalConfig.embeddingBaseUrl?.contains("ollama") == true -> {
+                logger.warn {
+                    "Ambiguous embedding provider. 'ollama' detected in embeddingBaseUrl, but embeddingProvider is not explicitly 'ollama'. Defaulting to Ollama."
+                }
                 val baseUrl = globalConfig.ollamaBaseUrl ?: globalConfig.embeddingBaseUrl ?: "http://localhost:11434"
                 val model = globalConfig.ollamaEmbeddingModelName ?: embeddingModelName
                 OllamaEmbeddingModel
@@ -69,7 +84,9 @@ class LangChainEmbeddingFactory : EmbeddingModelFactory {
             }
 
             else -> {
-                val apiKey = globalConfig.openAiApiKey ?: System.getenv("OPENAI_API_KEY")
+                val apiKey =
+                    globalConfig.openAiApiKey ?: System.getenv("OPENAI_API_KEY")
+                        ?: error("OpenAI API key not found. Set openAiApiKey in config or OPENAI_API_KEY env var.")
                 val builder =
                     OpenAiEmbeddingModel
                         .builder()

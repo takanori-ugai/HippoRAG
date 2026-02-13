@@ -12,6 +12,6 @@ val hippoSerializersModule: SerializersModule =
 
 fun jsonWithDefaults(configure: JsonBuilder.() -> Unit = {}): Json =
     Json {
-        serializersModule = hippoSerializersModule
         configure()
+        serializersModule = hippoSerializersModule
     }

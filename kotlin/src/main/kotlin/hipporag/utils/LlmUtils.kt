@@ -27,11 +27,43 @@ fun safeUnicodeDecode(content: Any): String {
             is String -> content
             else -> throw IllegalArgumentException("Input must be of type ByteArray or String.")
         }
-    val unicodeEscapePattern = Regex("\\\\u([0-9a-fA-F]{4})")
-    return unicodeEscapePattern.replace(text) { match ->
-        val hex = match.groupValues[1]
-        hex.toInt(16).toChar().toString()
+    if (!text.contains("\\u")) return text
+
+    val builder = StringBuilder(text.length)
+    var index = 0
+    while (index < text.length) {
+        val char = text[index]
+        if (char == '\\' && index + 5 < text.length && text[index + 1] == 'u') {
+            val hex = text.substring(index + 2, index + 6)
+            val codeUnit = hex.toIntOrNull(16)
+            if (codeUnit != null) {
+                val decoded = codeUnit.toChar()
+                if (Character.isHighSurrogate(decoded) &&
+                    index + 11 < text.length &&
+                    text[index + 6] == '\\' &&
+                    text[index + 7] == 'u'
+                ) {
+                    val lowHex = text.substring(index + 8, index + 12)
+                    val lowUnit = lowHex.toIntOrNull(16)
+                    if (lowUnit != null) {
+                        val low = lowUnit.toChar()
+                        if (Character.isLowSurrogate(low)) {
+                            val codePoint = Character.toCodePoint(decoded, low)
+                            builder.append(Character.toChars(codePoint))
+                            index += 12
+                            continue
+                        }
+                    }
+                }
+                builder.append(decoded)
+                index += 6
+                continue
+            }
+        }
+        builder.append(char)
+        index += 1
     }
+    return builder.toString()
 }
 
 fun fixBrokenGeneratedJson(jsonStr: String): String {
@@ -70,6 +102,9 @@ fun fixBrokenGeneratedJson(jsonStr: String): String {
         return unclosed
     }
 
+    val unclosedOriginal = findUnclosed(jsonStr)
+    if (unclosedOriginal.isEmpty()) return jsonStr
+
     val lastCommaIndex = jsonStr.lastIndexOf(',')
     val truncated = if (lastCommaIndex != -1) jsonStr.substring(0, lastCommaIndex) else jsonStr
     val unclosed = findUnclosed(truncated)
@@ -89,7 +124,7 @@ fun <T> retryWithBackoff(
     baseDelayMillis: Long = 250,
     maxDelayMillis: Long = 4000,
     jitterMillis: Long = 100,
-    retryOn: (Throwable) -> Boolean = { true },
+    retryOn: (Throwable) -> Boolean = { it is Exception },
     block: () -> T,
 ): T {
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
@@ -120,19 +155,13 @@ fun convertFormatToTemplate(
 ): String {
     val mapping = placeholderMapping ?: emptyMap()
     val statics = staticValues ?: emptyMap()
-    val pattern = Pattern.compile("\\{(\\w+)\\}")
-    val matcher = pattern.matcher(originalString)
-    val output = StringBuffer()
+    val pattern = Regex("\\{(\\w+)\\}") // Using Kotlin's Regex
 
-    while (matcher.find()) {
-        val originalPlaceholder = matcher.group(1)
-        val replacement =
-            when {
-                statics.containsKey(originalPlaceholder) -> statics.getValue(originalPlaceholder).toString()
-                else -> "\${${mapping[originalPlaceholder] ?: originalPlaceholder}}"
-            }
-        matcher.appendReplacement(output, Matcher.quoteReplacement(replacement))
+    return pattern.replace(originalString) { matchResult ->
+        val originalPlaceholder = matchResult.groupValues[1]
+        when {
+            statics.containsKey(originalPlaceholder) -> statics.getValue(originalPlaceholder).toString()
+            else -> "\${${mapping[originalPlaceholder] ?: originalPlaceholder}}"
+        }
     }
-    matcher.appendTail(output)
-    return output.toString()
 }

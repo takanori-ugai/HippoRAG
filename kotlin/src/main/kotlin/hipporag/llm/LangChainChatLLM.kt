@@ -15,11 +15,7 @@ class LangChainChatLLM(
         val chatMessages = messages.map { toChatMessage(it) }
         val response = model.chat(chatMessages)
         val aiMessage = response.aiMessage()
-        val responseText =
-            when (aiMessage) {
-                is AiMessage -> aiMessage.text()
-                else -> aiMessage.text()
-            }
+        val responseText = aiMessage.text()
 
         val metadata = mutableMapOf<String, Any>()
         val tokenUsage = response.tokenUsage()

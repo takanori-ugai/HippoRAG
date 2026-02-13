@@ -9,7 +9,12 @@ fun extractJsonObjectWithKey(
     key: String,
     json: Json,
 ): JsonObject? {
-    val pattern = Regex("\\{[^{}]*\"$key\"\\s*:\\s*\\[[\\s\\S]*?\\][^{}]*\\}", RegexOption.DOT_MATCHES_ALL)
+    val escapedKey = Regex.escape(key)
+    val pattern =
+        Regex(
+            "\\{[^{}]*\"$escapedKey\"\\s*:\\s*\\[[\\s\\S]*?\\][^{}]*\\}",
+            RegexOption.DOT_MATCHES_ALL,
+        )
     val match = pattern.find(response) ?: return null
     return runCatching { json.parseToJsonElement(match.value).jsonObject }.getOrNull()
 }

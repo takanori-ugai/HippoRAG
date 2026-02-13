@@ -106,6 +106,82 @@ class OpenIE(
     }
 }
 
+private fun twoPhaseOpenie(
+    llmModel: BaseLLM,
+    logger: io.github.oshai.kotlinlogging.KLogger,
+    promptTemplateManager: PromptTemplateManager,
+    json: Json,
+    rows: Map<String, EmbeddingRow>,
+): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> {
+    val nerResults = mutableMapOf<String, NerRawOutput>()
+    val tripleResults = mutableMapOf<String, TripleRawOutput>()
+
+    val namedEntitiesByChunk = mutableMapOf<String, List<String>>()
+    for ((chunkKey, row) in rows) {
+        val messages = promptTemplateManager.render("ner", mapOf("passage" to row.content))
+        try {
+            val result = llmModel.infer(messages)
+            val entities = extractNamedEntitiesFromResponse(result.response, json)
+            if (entities.isEmpty()) {
+                logger.warn { "No entities extracted for chunk_id: $chunkKey" }
+            }
+            nerResults[chunkKey] =
+                NerRawOutput(
+                    chunkId = chunkKey,
+                    response = result.response,
+                    uniqueEntities = entities.distinct(),
+                    metadata = result.metadata,
+                )
+            namedEntitiesByChunk[chunkKey] = entities
+        } catch (e: Exception) {
+            logger.warn(e) { "NER failed for chunk $chunkKey" }
+            nerResults[chunkKey] =
+                NerRawOutput(
+                    chunkId = chunkKey,
+                    response = null,
+                    uniqueEntities = emptyList(),
+                    metadata = mapOf("error" to e.message.orEmpty()),
+                )
+            namedEntitiesByChunk[chunkKey] = emptyList()
+        }
+    }
+
+    for ((chunkKey, row) in rows) {
+        val namedEntities = namedEntitiesByChunk[chunkKey] ?: emptyList()
+        val namedEntityJson = buildNamedEntityJson(namedEntities, json)
+        val messages =
+            promptTemplateManager.render(
+                "triple_extraction",
+                mapOf("passage" to row.content, "named_entity_json" to namedEntityJson),
+            )
+        try {
+            val result = llmModel.infer(messages)
+            val triples = extractTriplesFromResponse(result.response, json)
+            if (triples.isEmpty()) {
+                logger.warn { "No triples extracted for chunk_id: $chunkKey" }
+            }
+            tripleResults[chunkKey] =
+                TripleRawOutput(
+                    chunkId = chunkKey,
+                    response = result.response,
+                    triples = filterInvalidTriples(triples),
+                    metadata = result.metadata,
+                )
+        } catch (e: Exception) {
+            logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
+            tripleResults[chunkKey] =
+                TripleRawOutput(
+                    chunkId = chunkKey,
+                    response = null,
+                    triples = emptyList(),
+                    metadata = mapOf("error" to e.message.orEmpty()),
+                )
+        }
+    }
+
+    return nerResults to tripleResults
+}
+
 class VllmOfflineOpenIE(
     private val llmModel: BaseLLM,
 ) : OpenIEBase {
@@ -116,75 +192,8 @@ class VllmOfflineOpenIE(
         )
     private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
-    override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> {
-        val nerResults = mutableMapOf<String, NerRawOutput>()
-        val tripleResults = mutableMapOf<String, TripleRawOutput>()
-
-        val namedEntitiesByChunk = mutableMapOf<String, List<String>>()
-        for ((chunkKey, row) in rows) {
-            val messages = promptTemplateManager.render("ner", mapOf("passage" to row.content))
-            try {
-                val result = llmModel.infer(messages)
-                val entities = extractNamedEntitiesFromResponse(result.response, json)
-                if (entities.isEmpty()) {
-                    logger.warn { "No entities extracted for chunk_id: $chunkKey" }
-                }
-                nerResults[chunkKey] =
-                    NerRawOutput(
-                        chunkId = chunkKey,
-                        response = result.response,
-                        uniqueEntities = entities.distinct(),
-                        metadata = result.metadata,
-                    )
-                namedEntitiesByChunk[chunkKey] = entities
-            } catch (e: Exception) {
-                logger.warn(e) { "NER failed for chunk $chunkKey" }
-                nerResults[chunkKey] =
-                    NerRawOutput(
-                        chunkId = chunkKey,
-                        response = null,
-                        uniqueEntities = emptyList(),
-                        metadata = mapOf("error" to e.message.orEmpty()),
-                    )
-                namedEntitiesByChunk[chunkKey] = emptyList()
-            }
-        }
-
-        for ((chunkKey, row) in rows) {
-            val namedEntities = namedEntitiesByChunk[chunkKey] ?: emptyList()
-            val namedEntityJson = buildNamedEntityJson(namedEntities, json)
-            val messages =
-                promptTemplateManager.render(
-                    "triple_extraction",
-                    mapOf("passage" to row.content, "named_entity_json" to namedEntityJson),
-                )
-            try {
-                val result = llmModel.infer(messages)
-                val triples = extractTriplesFromResponse(result.response, json)
-                if (triples.isEmpty()) {
-                    logger.warn { "No triples extracted for chunk_id: $chunkKey" }
-                }
-                tripleResults[chunkKey] =
-                    TripleRawOutput(
-                        chunkId = chunkKey,
-                        response = result.response,
-                        triples = filterInvalidTriples(triples),
-                        metadata = result.metadata,
-                    )
-            } catch (e: Exception) {
-                logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
-                tripleResults[chunkKey] =
-                    TripleRawOutput(
-                        chunkId = chunkKey,
-                        response = null,
-                        triples = emptyList(),
-                        metadata = mapOf("error" to e.message.orEmpty()),
-                    )
-            }
-        }
-
-        return nerResults to tripleResults
-    }
+    override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> =
+        twoPhaseOpenie(llmModel, logger, promptTemplateManager, json, rows)
 }
 
 class TransformersOfflineOpenIE(
@@ -197,75 +206,8 @@ class TransformersOfflineOpenIE(
         )
     private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
-    override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> {
-        val nerResults = mutableMapOf<String, NerRawOutput>()
-        val tripleResults = mutableMapOf<String, TripleRawOutput>()
-
-        val namedEntitiesByChunk = mutableMapOf<String, List<String>>()
-        for ((chunkKey, row) in rows) {
-            val messages = promptTemplateManager.render("ner", mapOf("passage" to row.content))
-            try {
-                val result = llmModel.infer(messages)
-                val entities = extractNamedEntitiesFromResponse(result.response, json)
-                if (entities.isEmpty()) {
-                    logger.warn { "No entities extracted for chunk_id: $chunkKey" }
-                }
-                nerResults[chunkKey] =
-                    NerRawOutput(
-                        chunkId = chunkKey,
-                        response = result.response,
-                        uniqueEntities = entities.distinct(),
-                        metadata = result.metadata,
-                    )
-                namedEntitiesByChunk[chunkKey] = entities
-            } catch (e: Exception) {
-                logger.warn(e) { "NER failed for chunk $chunkKey" }
-                nerResults[chunkKey] =
-                    NerRawOutput(
-                        chunkId = chunkKey,
-                        response = null,
-                        uniqueEntities = emptyList(),
-                        metadata = mapOf("error" to e.message.orEmpty()),
-                    )
-                namedEntitiesByChunk[chunkKey] = emptyList()
-            }
-        }
-
-        for ((chunkKey, row) in rows) {
-            val namedEntities = namedEntitiesByChunk[chunkKey] ?: emptyList()
-            val namedEntityJson = buildNamedEntityJson(namedEntities, json)
-            val messages =
-                promptTemplateManager.render(
-                    "triple_extraction",
-                    mapOf("passage" to row.content, "named_entity_json" to namedEntityJson),
-                )
-            try {
-                val result = llmModel.infer(messages)
-                val triples = extractTriplesFromResponse(result.response, json)
-                if (triples.isEmpty()) {
-                    logger.warn { "No triples extracted for chunk_id: $chunkKey" }
-                }
-                tripleResults[chunkKey] =
-                    TripleRawOutput(
-                        chunkId = chunkKey,
-                        response = result.response,
-                        triples = filterInvalidTriples(triples),
-                        metadata = result.metadata,
-                    )
-            } catch (e: Exception) {
-                logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
-                tripleResults[chunkKey] =
-                    TripleRawOutput(
-                        chunkId = chunkKey,
-                        response = null,
-                        triples = emptyList(),
-                        metadata = mapOf("error" to e.message.orEmpty()),
-                    )
-            }
-        }
-
-        return nerResults to tripleResults
-    }
+    override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> =
+        twoPhaseOpenie(llmModel, logger, promptTemplateManager, json, rows)
 }
 
 private fun buildNamedEntityJson(

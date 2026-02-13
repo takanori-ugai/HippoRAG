@@ -25,8 +25,8 @@ class EmbeddingStore(
     private val hashIdToRow = mutableMapOf<String, EmbeddingRow>()
     private val hashIdToText = mutableMapOf<String, String>()
 
-    val textToHashId: Map<String, String>
-        get() = hashIdToText.entries.associate { (k, v) -> v to k }
+    private var _textToHashId: Map<String, String> = emptyMap()
+    val textToHashId: Map<String, String> get() = _textToHashId
 
     init {
         val dir = File(dbFilename)
@@ -106,7 +106,7 @@ class EmbeddingStore(
     }
 
     fun delete(hashIds: Collection<String>) {
-        val indices = hashIds.mapNotNull { hashIdToIdx[it] }.sortedDescending()
+        val indices = hashIds.mapNotNull { hashIdToIdx[it] }.distinct().sortedDescending()
         for (idx in indices) {
             this.hashIds.removeAt(idx)
             this.texts.removeAt(idx)
@@ -153,6 +153,13 @@ class EmbeddingStore(
         logger.info { "Loaded ${hashIds.size} records from $filename" }
     }
 
+    /**
+     * Saves the embedding store data to a JSON file.
+     * NOTE: This approach serializes all data into a single JSON blob.
+     * For very large embedding stores, this might become a performance bottleneck
+     * and a more scalable persistence strategy (e.g., SQLite, append-only log)
+     * should be considered.
+     */
     private fun saveData() {
         val data =
             EmbeddingStoreData(
@@ -177,6 +184,7 @@ class EmbeddingStore(
             hashIdToText[hashId] = text
             hashIdToRow[hashId] = EmbeddingRow(hashId = hashId, content = text)
         }
+        _textToHashId = hashIdToText.entries.associate { (k, v) -> v to k }
     }
 }
 

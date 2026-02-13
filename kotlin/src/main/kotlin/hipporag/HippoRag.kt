@@ -58,7 +58,7 @@ class HippoRag(
 
     private val logger = KotlinLogging.logger {}
 
-    val globalConfig: BaseConfig = initialConfig ?: BaseConfig()
+    val globalConfig: BaseConfig = (initialConfig ?: BaseConfig()).copy()
 
     private val workingDir: String
 
@@ -215,7 +215,7 @@ class HippoRag(
             saveOpenieResults(allOpenieInfo)
         }
 
-        error("Done with OpenIE, run online indexing for future retrieval.")
+        logger.info { "Offline OpenIE complete. Run online indexing for future retrieval." }
     }
 
     fun index(docs: List<String>) {
@@ -306,7 +306,7 @@ class HippoRag(
         val trueTriplesToDelete = mutableListOf<List<String>>()
         for (triple in flattenedTriplesToDelete) {
             val procTriple = textProcessing(triple)
-            val docIds = procTriplesToDocs.getValue(procTriple.toString())
+            val docIds = procTriplesToDocs[procTriple.toString()] ?: emptySet()
             val nonDeletedDocs = docIds.subtract(chunkIdsToDelete)
             if (nonDeletedDocs.isEmpty()) {
                 trueTriplesToDelete.add(triple)
@@ -355,6 +355,10 @@ class HippoRag(
         goldDocs: List<List<String>>? = null,
     ): Pair<List<QuerySolution>, Map<String, Double>?> {
         val retrieveStart = nowSeconds()
+
+        pprTimeSeconds = 0.0
+        rerankTimeSeconds = 0.0
+        allRetrievalTimeSeconds = 0.0
 
         val k = numToRetrieve ?: globalConfig.retrievalTopK
         val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
@@ -407,11 +411,11 @@ class HippoRag(
         val retrieveEnd = nowSeconds()
         allRetrievalTimeSeconds += retrieveEnd - retrieveStart
 
-        logger.info { "Total Retrieval Time ${"%.2f".format(allRetrievalTimeSeconds)}s" }
-        logger.info { "Total Recognition Memory Time ${"%.2f".format(rerankTimeSeconds)}s" }
-        logger.info { "Total PPR Time ${"%.2f".format(pprTimeSeconds)}s" }
+        logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
+        logger.info { "Total Recognition Memory Time ${String.format(Locale.US, "%.2f", rerankTimeSeconds)}s" }
+        logger.info { "Total PPR Time ${String.format(Locale.US, "%.2f", pprTimeSeconds)}s" }
         logger.info {
-            "Total Misc Time ${"%.2f".format(allRetrievalTimeSeconds - (rerankTimeSeconds + pprTimeSeconds))}s"
+            "Total Misc Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds - (rerankTimeSeconds + pprTimeSeconds))}s"
         }
 
         if (goldDocs != null && retrievalRecallEvaluator != null) {
@@ -522,6 +526,10 @@ class HippoRag(
     ): Pair<List<QuerySolution>, Map<String, Double>?> {
         val retrieveStart = nowSeconds()
 
+        pprTimeSeconds = 0.0
+        rerankTimeSeconds = 0.0
+        allRetrievalTimeSeconds = 0.0
+
         val k = numToRetrieve ?: globalConfig.retrievalTopK
         val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
 
@@ -554,7 +562,7 @@ class HippoRag(
         val retrieveEnd = nowSeconds()
         allRetrievalTimeSeconds += retrieveEnd - retrieveStart
 
-        logger.info { "Total Retrieval Time ${"%.2f".format(allRetrievalTimeSeconds)}s" }
+        logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
 
         if (goldDocs != null && retrievalRecallEvaluator != null) {
             val kList = listOf(1, 2, 5, 10, 20, 30, 50, 100, 150, 200)
@@ -1056,29 +1064,13 @@ class HippoRag(
         readyToRetrieve = true
     }
 
-    private fun getQueryEmbeddings(queries: List<Any>) {
-        val allQueryStrings = mutableListOf<String>()
-        for (query in queries) {
-            when (query) {
-                is QuerySolution -> {
-                    if (
-                        !queryToEmbedding.getValue("triple").containsKey(query.question) ||
-                        !queryToEmbedding.getValue("passage").containsKey(query.question)
-                    ) {
-                        allQueryStrings.add(query.question)
-                    }
-                }
-
-                is String -> {
-                    if (
-                        !queryToEmbedding.getValue("triple").containsKey(query) ||
-                        !queryToEmbedding.getValue("passage").containsKey(query)
-                    ) {
-                        allQueryStrings.add(query)
-                    }
-                }
+    @JvmName("getQueryEmbeddingsFromStrings")
+    private fun getQueryEmbeddings(queries: List<String>) {
+        val allQueryStrings =
+            queries.filter {
+                !queryToEmbedding.getValue("triple").containsKey(it) ||
+                    !queryToEmbedding.getValue("passage").containsKey(it)
             }
-        }
 
         if (allQueryStrings.isNotEmpty()) {
             logger.info { "Encoding ${allQueryStrings.size} queries for query_to_fact." }
@@ -1105,6 +1097,10 @@ class HippoRag(
                 queryToEmbedding.getValue("passage")[query] = embedding
             }
         }
+    }
+
+    private fun getQueryEmbeddings(queries: List<QuerySolution>) {
+        getQueryEmbeddings(queries.map { it.question })
     }
 
     private fun getFactScores(query: String): DoubleArray {
@@ -1177,7 +1173,12 @@ class HippoRag(
             }
         }
 
-        check(allPhraseWeights.count { it != 0.0 } == filteredMap.size)
+        val nonZeroCount = allPhraseWeights.count { it != 0.0 }
+        if (nonZeroCount != filteredMap.size) {
+            logger.warn {
+                "Phrase weight count ($nonZeroCount) does not match filtered map size (${filteredMap.size}). This may be due to zero-weight phrases."
+            }
+        }
         return allPhraseWeights to filteredMap
     }
 

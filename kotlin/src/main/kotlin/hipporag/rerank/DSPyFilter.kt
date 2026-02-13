@@ -116,16 +116,20 @@ class DSPyFilter(
 
         val indices = mutableListOf<Int>()
         val facts = mutableListOf<List<String>>()
+        val matched = mutableSetOf<Int>()
 
         for (fact in filteredFacts) {
-            val exactIdx = candidateFacts.indexOfFirst { it == fact }
+            val exactIdx =
+                candidateFacts.indices.firstOrNull { it !in matched && candidateFacts[it] == fact }
+                    ?: -1
             val idx =
                 if (exactIdx >= 0) {
                     exactIdx
                 } else {
-                    bestFuzzyMatchIndex(fact, candidateFacts)
+                    bestFuzzyMatchIndex(fact, candidateFacts, matched)
                 }
-            if (idx >= 0) {
+            if (idx >= 0 && idx !in matched) {
+                matched.add(idx)
                 indices.add(candidateFactIndices[idx])
                 facts.add(candidateFacts[idx])
             }
@@ -141,11 +145,13 @@ class DSPyFilter(
     private fun bestFuzzyMatchIndex(
         fact: List<String>,
         candidates: List<List<String>>,
+        matched: Set<Int>,
     ): Int {
         val target = normalizeFact(fact)
         var bestIdx = -1
         var bestScore = 0.0
         for ((idx, candidate) in candidates.withIndex()) {
+            if (idx in matched) continue
             val score = jaccardSimilarity(target, normalizeFact(candidate))
             if (score > bestScore) {
                 bestScore = score

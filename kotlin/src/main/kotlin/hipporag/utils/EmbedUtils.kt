@@ -14,6 +14,8 @@ fun retrieveKnn(
     k: Int,
 ): Map<String, Pair<List<String>, List<Double>>> {
     if (keyVecs.isEmpty() || queryVecs.isEmpty()) return emptyMap()
+    require(queryIds.size == queryVecs.size) { "queryIds and queryVecs must have the same size" }
+    require(keyIds.size == keyVecs.size) { "keyIds and keyVecs must have the same size" }
 
     val normalizedKeys = keyVecs.map { normalize(it) }.toTypedArray()
     val normalizedQueries = queryVecs.map { normalize(it) }.toTypedArray()

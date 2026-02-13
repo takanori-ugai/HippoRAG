@@ -51,13 +51,11 @@ private fun resolveSafeFile(
     val baseDir = File(".").canonicalFile
     val file = File(path).canonicalFile
     val basePath = baseDir.path + File.separator
-    if (!file.path.startsWith(basePath)) {
-        System.err.println("Refusing to read $label outside working directory: ${file.path}")
-        exitProcess(1)
+    require(file.path.startsWith(basePath)) {
+        "Refusing to read $label outside working directory: ${file.path}"
     }
-    if (!file.isFile) {
-        System.err.println("Missing or invalid $label file: ${file.path}")
-        exitProcess(1)
+    require(file.isFile) {
+        "Missing or invalid $label file: ${file.path}"
     }
     return file
 }

@@ -13,8 +13,16 @@ fun runDemo(
 ) {
     val parsed = DemoArgs.parse(args)
     val json = jsonWithDefaults { ignoreUnknownKeys = true }
-    val docs = json.decodeFromString(ListSerializer(String.serializer()), File(parsed.docsPath).readText())
-    val queries = json.decodeFromString(ListSerializer(String.serializer()), File(parsed.queriesPath).readText())
+    val docsFile =
+        File(parsed.docsPath).also {
+            require(it.exists()) { "Docs file not found: ${parsed.docsPath}" }
+        }
+    val queriesFile =
+        File(parsed.queriesPath).also {
+            require(it.exists()) { "Queries file not found: ${parsed.queriesPath}" }
+        }
+    val docs = json.decodeFromString(ListSerializer(String.serializer()), docsFile.readText())
+    val queries = json.decodeFromString(ListSerializer(String.serializer()), queriesFile.readText())
 
     val config =
         BaseConfig().apply {

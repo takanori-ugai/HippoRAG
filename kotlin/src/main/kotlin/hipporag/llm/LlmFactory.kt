@@ -40,7 +40,9 @@ fun getLlm(globalConfig: BaseConfig): BaseLLM {
     val model =
         when {
             globalConfig.azureEndpoint != null -> {
-                val apiKey = globalConfig.azureApiKey ?: System.getenv("AZURE_OPENAI_API_KEY")
+                val apiKey =
+                    globalConfig.azureApiKey ?: System.getenv("AZURE_OPENAI_API_KEY")
+                        ?: error("Azure OpenAI API key not configured. Set azureApiKey in config or AZURE_OPENAI_API_KEY env var.")
                 val deployment = globalConfig.azureDeploymentName ?: modelName
                 AzureOpenAiChatModel
                     .builder()
@@ -63,7 +65,9 @@ fun getLlm(globalConfig: BaseConfig): BaseLLM {
             }
 
             else -> {
-                val apiKey = globalConfig.openAiApiKey ?: System.getenv("OPENAI_API_KEY")
+                val apiKey =
+                    globalConfig.openAiApiKey ?: System.getenv("OPENAI_API_KEY")
+                        ?: error("OpenAI API key not configured. Set openAiApiKey in config or OPENAI_API_KEY env var.")
                 val builder =
                     OpenAiChatModel
                         .builder()
