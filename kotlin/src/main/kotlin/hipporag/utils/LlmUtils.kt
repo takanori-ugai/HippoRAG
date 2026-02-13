@@ -1,7 +1,5 @@
 package hipporag.utils
 
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -105,7 +103,7 @@ fun fixBrokenGeneratedJson(jsonStr: String): String {
     val unclosedOriginal = findUnclosed(jsonStr)
     if (unclosedOriginal.isEmpty()) return jsonStr
 
-    val lastCommaIndex = jsonStr.lastIndexOf(',')
+    val lastCommaIndex = findLastCommaOutsideString(jsonStr)
     val truncated = if (lastCommaIndex != -1) jsonStr.substring(0, lastCommaIndex) else jsonStr
     val unclosed = findUnclosed(truncated)
     if (unclosed.isEmpty()) return truncated
@@ -116,6 +114,27 @@ fun fixBrokenGeneratedJson(jsonStr: String): String {
         builder.append(closingMap.getValue(openChar))
     }
     return builder.toString()
+}
+
+private fun findLastCommaOutsideString(input: String): Int {
+    var insideString = false
+    var escapeNext = false
+    var lastCommaIndex = -1
+    input.forEachIndexed { index, char ->
+        if (insideString) {
+            when {
+                escapeNext -> escapeNext = false
+                char == '\\' -> escapeNext = true
+                char == '"' -> insideString = false
+            }
+        } else {
+            when (char) {
+                '"' -> insideString = true
+                ',' -> lastCommaIndex = index
+            }
+        }
+    }
+    return lastCommaIndex
 }
 
 @Suppress("TooGenericExceptionCaught")

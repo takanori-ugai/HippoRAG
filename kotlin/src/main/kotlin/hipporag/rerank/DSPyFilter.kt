@@ -101,7 +101,10 @@ class DSPyFilter(
         val result = mutableListOf<List<String>>()
         for (factEl in factArray) {
             val triple = runCatching { factEl.jsonArray }.getOrNull() ?: continue
-            val tripleList = triple.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }.filter { it.isNotEmpty() }
+            val tripleList =
+                triple
+                    .mapNotNull { runCatching { it.jsonPrimitive.contentOrNull?.trim() }.getOrNull() }
+                    .filter { it.isNotEmpty() }
             if (tripleList.isNotEmpty()) {
                 result.add(tripleList)
             }
@@ -197,6 +200,9 @@ class DSPyFilter(
     private fun buildTemplate(): List<Message> {
         val jsonText = loadPromptJson()
         val root = runCatching { json.parseToJsonElement(jsonText).jsonObject }.getOrNull()
+        if (root == null) {
+            logger.warn { "Failed to parse DSPy prompt JSON; using minimal fallback template." }
+        }
         val prog = root?.get("prog")?.jsonObject
         val system = prog?.get("system")?.jsonPrimitive?.contentOrNull
         val demos = prog?.get("demos")?.jsonArray ?: JsonArray(emptyList())

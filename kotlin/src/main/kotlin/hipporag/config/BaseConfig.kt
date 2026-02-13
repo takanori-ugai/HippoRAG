@@ -3,7 +3,7 @@ package hipporag.config
 data class BaseConfig(
     var saveDir: String = "outputs",
     var llmName: String = "gpt-4o-mini",
-    var embeddingModelName: String = "nvidia/NV-Embed-v2",
+    var embeddingModelName: String = "text-embedding-3-large",
     var llmBaseUrl: String? = null,
     var embeddingBaseUrl: String? = null,
     var azureEndpoint: String? = null,
