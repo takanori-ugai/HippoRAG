@@ -1,0 +1,26 @@
+package hipporag.embeddingmodel
+
+import dev.langchain4j.data.segment.TextSegment
+import dev.langchain4j.model.embedding.EmbeddingModel
+import hipporag.utils.normalizeVector
+
+class LangChainEmbeddingModel(
+    private val model: EmbeddingModel,
+) : BaseEmbeddingModel {
+    override fun batchEncode(
+        texts: List<String>,
+        instruction: String?,
+        norm: Boolean,
+    ): Array<DoubleArray> {
+        if (texts.isEmpty()) return emptyArray()
+        val segments = texts.map { TextSegment.from(it) }
+        val result = model.embedAll(segments)
+        val embeddings =
+            result.content().map { embedding ->
+                val vector = embedding.vector()
+                val asDouble = DoubleArray(vector.size) { idx -> vector[idx].toDouble() }
+                if (norm) normalizeVector(asDouble) else asDouble
+            }
+        return embeddings.toTypedArray()
+    }
+}

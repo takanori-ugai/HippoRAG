@@ -1,0 +1,108 @@
+package hipporag.config
+
+class BaseConfig {
+    var saveDir: String = "outputs"
+    var llmName: String = "gpt-4o-mini"
+    var embeddingModelName: String = "nvidia/NV-Embed-v2"
+    var llmBaseUrl: String? = null
+    var embeddingBaseUrl: String? = null
+    var azureEndpoint: String? = null
+    var azureEmbeddingEndpoint: String? = null
+    var llmProvider: String? = null
+    var openAiApiKey: String? = null
+    var azureApiKey: String? = null
+    var azureDeploymentName: String? = null
+    var ollamaBaseUrl: String? = null
+    var ollamaModelName: String? = null
+    var embeddingProvider: String? = null
+    var azureEmbeddingDeploymentName: String? = null
+    var ollamaEmbeddingModelName: String? = null
+    var rerankDspyFilePath: String? = null
+    var maxNewTokens: Int? = 2048
+    var numGenChoices: Int = 1
+    var seed: Int? = null
+    var temperature: Double = 0.0
+    var maxRetryAttempts: Int = 5
+    var responseFormat: Map<String, String>? = mapOf("type" to "json_object")
+    var openieMode: String = "online"
+    var informationExtractionModelName: String = "openie_openai_gpt"
+    var skipGraph: Boolean = false
+    var forceIndexFromScratch: Boolean = false
+    var forceOpenieFromScratch: Boolean = false
+    var isDirectedGraph: Boolean = false
+    var embeddingBatchSize: Int = 16
+    var embeddingReturnAsNormalized: Boolean = true
+    var embeddingMaxSeqLen: Int = 2048
+    var embeddingModelDtype: String = "auto"
+    var retrievalTopK: Int = 200
+    var linkingTopK: Int = 5
+    var passageNodeWeight: Double = 0.05
+    var dataset: String = ""
+    var maxQaSteps: Int = 1
+    var qaTopK: Int = 5
+    var synonymyEdgeTopK: Int = 2047
+    var synonymyEdgeQueryBatchSize: Int = 1000
+    var synonymyEdgeKeyBatchSize: Int = 10000
+    var synonymyEdgeSimThreshold: Double = 0.8
+    var saveOpenie: Boolean = true
+    var damping: Double = 0.5
+    var textPreprocessorClassName: String = "TextPreprocessor"
+    var preprocessEncoderName: String = "gpt-4o"
+    var preprocessChunkOverlapTokenSize: Int = 128
+    var preprocessChunkMaxTokenSize: Int? = null
+    var preprocessChunkFunc: String = "by_token"
+
+    fun toMap(): Map<String, Any?> =
+        mapOf(
+            "saveDir" to saveDir,
+            "llmName" to llmName,
+            "embeddingModelName" to embeddingModelName,
+            "llmBaseUrl" to llmBaseUrl,
+            "embeddingBaseUrl" to embeddingBaseUrl,
+            "azureEndpoint" to azureEndpoint,
+            "azureEmbeddingEndpoint" to azureEmbeddingEndpoint,
+            "openieMode" to openieMode,
+            "llmProvider" to llmProvider,
+            "openAiApiKey" to openAiApiKey,
+            "azureApiKey" to azureApiKey,
+            "azureDeploymentName" to azureDeploymentName,
+            "ollamaBaseUrl" to ollamaBaseUrl,
+            "ollamaModelName" to ollamaModelName,
+            "embeddingProvider" to embeddingProvider,
+            "azureEmbeddingDeploymentName" to azureEmbeddingDeploymentName,
+            "ollamaEmbeddingModelName" to ollamaEmbeddingModelName,
+            "rerankDspyFilePath" to rerankDspyFilePath,
+            "maxNewTokens" to maxNewTokens,
+            "numGenChoices" to numGenChoices,
+            "seed" to seed,
+            "temperature" to temperature,
+            "maxRetryAttempts" to maxRetryAttempts,
+            "responseFormat" to responseFormat,
+            "forceIndexFromScratch" to forceIndexFromScratch,
+            "forceOpenieFromScratch" to forceOpenieFromScratch,
+            "isDirectedGraph" to isDirectedGraph,
+            "embeddingBatchSize" to embeddingBatchSize,
+            "embeddingReturnAsNormalized" to embeddingReturnAsNormalized,
+            "embeddingMaxSeqLen" to embeddingMaxSeqLen,
+            "embeddingModelDtype" to embeddingModelDtype,
+            "retrievalTopK" to retrievalTopK,
+            "linkingTopK" to linkingTopK,
+            "passageNodeWeight" to passageNodeWeight,
+            "dataset" to dataset,
+            "maxQaSteps" to maxQaSteps,
+            "qaTopK" to qaTopK,
+            "synonymyEdgeTopK" to synonymyEdgeTopK,
+            "synonymyEdgeQueryBatchSize" to synonymyEdgeQueryBatchSize,
+            "synonymyEdgeKeyBatchSize" to synonymyEdgeKeyBatchSize,
+            "synonymyEdgeSimThreshold" to synonymyEdgeSimThreshold,
+            "saveOpenie" to saveOpenie,
+            "damping" to damping,
+            "textPreprocessorClassName" to textPreprocessorClassName,
+            "preprocessEncoderName" to preprocessEncoderName,
+            "preprocessChunkOverlapTokenSize" to preprocessChunkOverlapTokenSize,
+            "preprocessChunkMaxTokenSize" to preprocessChunkMaxTokenSize,
+            "preprocessChunkFunc" to preprocessChunkFunc,
+            "informationExtractionModelName" to informationExtractionModelName,
+            "skipGraph" to skipGraph,
+        )
+}
