@@ -113,7 +113,8 @@ private data class Args(
                 "Usage: --docs <docs.json> --queries <queries.json> [--config <config.json>] [--save_dir outputs] " +
                     "[--llm_name gpt-4o-mini] [--llm_base_url <url>] [--embedding_name <name>] " +
                     "[--openie_mode online] [--force_index_from_scratch false] [--force_openie_from_scratch false] " +
-                    "[--rerank_dspy_file_path <path>]",
+                    "[--rerank_dspy_file_path <path>]\n" +
+                    "Note: file paths must resolve within the current working directory.",
             )
             exitProcess(2)
         }

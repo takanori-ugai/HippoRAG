@@ -127,8 +127,10 @@ class HippoRag(
 
         llmModel = getLlm(globalConfig)
 
+        val openieMode = globalConfig.openieMode.lowercase()
+
         openie =
-            when (globalConfig.openieMode) {
+            when (openieMode) {
                 "online" -> {
                     OpenIE(llmModel)
                 }
@@ -137,7 +139,7 @@ class HippoRag(
                     VllmOfflineOpenIE(llmModel)
                 }
 
-                "Transformers-offline" -> {
+                "transformers-offline" -> {
                     TransformersOfflineOpenIE(llmModel)
                 }
 
@@ -150,7 +152,7 @@ class HippoRag(
         graph = initializeGraph()
 
         embeddingModel =
-            if (globalConfig.openieMode == "offline") {
+            if (openieMode == "offline") {
                 null
             } else {
                 getEmbeddingModel().create(globalConfig, globalConfig.embeddingModelName)
@@ -542,7 +544,7 @@ class HippoRag(
         val retrievalResults = mutableListOf<QuerySolution>()
 
         for (query in queries) {
-            logger.info { "No facts found after reranking, return DPR results" }
+            logger.info { "Performing DPR retrieval for query." }
             val (sortedDocIds, sortedDocScores) = densePassageRetrieval(query)
 
             val topKDocs =
@@ -1079,7 +1081,10 @@ class HippoRag(
                     allQueryStrings,
                     instruction = getQueryInstruction("query_to_fact"),
                     norm = true,
-                ) ?: emptyArray()
+                ) ?: run {
+                    logger.warn { "Embedding model is null; cannot encode queries. Retrieval will fail." }
+                    emptyArray()
+                }
 
             for ((query, embedding) in allQueryStrings.zip(queryEmbeddingsForTriple)) {
                 queryToEmbedding.getValue("triple")[query] = embedding
@@ -1091,7 +1096,10 @@ class HippoRag(
                     allQueryStrings,
                     instruction = getQueryInstruction("query_to_passage"),
                     norm = true,
-                ) ?: emptyArray()
+                ) ?: run {
+                    logger.warn { "Embedding model is null; cannot encode queries. Retrieval will fail." }
+                    emptyArray()
+                }
 
             for ((query, embedding) in allQueryStrings.zip(queryEmbeddingsForPassage)) {
                 queryToEmbedding.getValue("passage")[query] = embedding
@@ -1278,7 +1286,10 @@ class HippoRag(
                     .toMutableMap()
         }
 
-        check(nodeWeights.sum() > 0.0) { "No phrases found in the graph for the given facts: $topKFacts" }
+        if (nodeWeights.sum() <= 0.0) {
+            logger.warn { "No phrases found in the graph for the given facts; falling back to DPR." }
+            return dprSortedDocIds to dprSortedDocScores
+        }
 
         val pprStart = nowSeconds()
         val (pprSortedDocIds, pprSortedDocScores) = runPpr(nodeWeights, damping = globalConfig.damping)

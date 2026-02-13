@@ -65,9 +65,13 @@ class DSPyFilter(
             )
 
         val userPrompt =
-            oneInputTemplate
-                .replace("{question}", query)
-                .replace("{fact_before_filter}", json.encodeToString(JsonObject.serializer(), factBeforeFilter))
+            fillTemplate(
+                oneInputTemplate,
+                mapOf(
+                    "question" to query,
+                    "fact_before_filter" to json.encodeToString(JsonObject.serializer(), factBeforeFilter),
+                ),
+            )
 
         val messages = messageTemplate + Message(role = "user", content = userPrompt)
 
@@ -103,6 +107,16 @@ class DSPyFilter(
             }
         }
         return result
+    }
+
+    private fun fillTemplate(
+        template: String,
+        values: Map<String, String>,
+    ): String {
+        val pattern = Regex("\\{(question|fact_before_filter)\\}")
+        return pattern.replace(template) { match ->
+            values[match.groupValues[1]] ?: match.value
+        }
     }
 
     private fun matchFactsToCandidates(

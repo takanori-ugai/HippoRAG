@@ -10,7 +10,7 @@ import java.io.File
 
 class EmbeddingStore(
     private val embeddingModel: BaseEmbeddingModel?,
-    private val dbFilename: String,
+    private val dbDirectory: String,
     private val namespace: String,
 ) {
     private val logger = KotlinLogging.logger {}
@@ -29,13 +29,13 @@ class EmbeddingStore(
     val textToHashId: Map<String, String> get() = _textToHashId
 
     init {
-        val dir = File(dbFilename)
+        val dir = File(dbDirectory)
         if (!dir.exists()) {
-            logger.info { "Creating working directory: $dbFilename" }
+            logger.info { "Creating working directory: $dbDirectory" }
             dir.mkdirs()
         }
 
-        filename = File(dbFilename, "vdb_$namespace.json").path
+        filename = File(dbDirectory, "vdb_$namespace.json").path
         loadData()
     }
 
@@ -127,6 +127,7 @@ class EmbeddingStore(
         this.texts.addAll(texts)
         this.embeddings.addAll(embeddings)
 
+        rebuildIndexes()
         logger.info { "Saving new records." }
         saveData()
     }
@@ -169,7 +170,6 @@ class EmbeddingStore(
             )
         val json = jsonWithDefaults { prettyPrint = false }
         File(filename).writeText(json.encodeToString(EmbeddingStoreData.serializer(), data))
-        rebuildIndexes()
         logger.info { "Saved ${hashIds.size} records to $filename" }
     }
 

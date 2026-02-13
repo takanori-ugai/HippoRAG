@@ -10,6 +10,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonClassDiscriminator
 import java.io.File
+import java.net.JarURLConnection
+import java.net.URL
 import kotlin.OptIn
 
 class PromptTemplateManager(
@@ -99,34 +101,84 @@ object PromptTemplates {
         }
 
     private fun loadTemplates(): Map<String, PromptTemplate> {
-        val templatesDir = getResourceAsFile("prompts/templates")
-        if (templatesDir == null || !templatesDir.isDirectory) {
-            logger.warn { "Templates directory 'prompts/templates' not found in resources." }
+        val templatesPath = "prompts/templates"
+        val classLoader = this::class.java.classLoader
+        val templatesUrl = classLoader.getResource(templatesPath)
+        if (templatesUrl == null) {
+            logger.warn { "Templates directory '$templatesPath' not found in resources." }
             return emptyMap()
         }
 
-        return templatesDir
-            .listFiles { _, name -> name.endsWith(".json") }
-            ?.mapNotNull { file ->
-                val templateName = file.nameWithoutExtension
+        val templateFiles = listTemplateFiles(templatesUrl, templatesPath)
+        if (templateFiles.isEmpty()) {
+            logger.warn { "No template files found under '$templatesPath'." }
+            return emptyMap()
+        }
+
+        return templateFiles
+            .mapNotNull { fileName ->
+                val resourcePath = "$templatesPath/$fileName"
                 try {
-                    val content = file.readText()
-                    val template = json.decodeFromString<PromptTemplate>(content)
-                    templateName to template
+                    val content =
+                        classLoader
+                            .getResourceAsStream(resourcePath)
+                            ?.bufferedReader()
+                            ?.use { it.readText() }
+                            ?: run {
+                                logger.warn { "Template resource '$resourcePath' not found." }
+                                return@mapNotNull null
+                            }
+                    val templateName = fileName.substringBeforeLast(".json")
+                    templateName to json.decodeFromString<PromptTemplate>(content)
                 } catch (e: Exception) {
-                    logger.error(e) { "Error loading template: ${file.name}" }
+                    logger.error(e) { "Error loading template: $fileName" }
                     null
                 }
-            }?.toMap() ?: emptyMap()
+            }.toMap()
     }
 
-    private fun getResourceAsFile(path: String): File? =
-        try {
-            this::class.java.classLoader
-                .getResource(path)
-                ?.let { File(it.toURI()) }
-        } catch (e: Exception) {
-            logger.error(e) { "Error getting resource: $path" }
-            null
+    private fun listTemplateFiles(
+        templatesUrl: URL,
+        templatesPath: String,
+    ): List<String> =
+        when (templatesUrl.protocol) {
+            "file" -> {
+                val dir = File(templatesUrl.toURI())
+                if (!dir.isDirectory) {
+                    emptyList()
+                } else {
+                    dir
+                        .listFiles { _, name -> name.endsWith(".json") }
+                        ?.map { it.name }
+                        ?: emptyList()
+                }
+            }
+
+            "jar" -> {
+                listTemplateFilesFromJar(templatesUrl, templatesPath)
+            }
+
+            else -> {
+                logger.warn { "Unsupported templates URL protocol '${templatesUrl.protocol}'." }
+                emptyList()
+            }
         }
+
+    private fun listTemplateFilesFromJar(
+        templatesUrl: URL,
+        templatesPath: String,
+    ): List<String> {
+        val connection = templatesUrl.openConnection() as? JarURLConnection
+        val jarFile = connection?.jarFile ?: return emptyList()
+        val entryPrefix =
+            connection.entryName?.let { if (it.endsWith("/")) it else "$it/" }
+                ?: "$templatesPath/"
+
+        return jarFile
+            .entries()
+            .asSequence()
+            .filter { !it.isDirectory && it.name.startsWith(entryPrefix) && it.name.endsWith(".json") }
+            .map { it.name.removePrefix(entryPrefix) }
+            .toList()
+    }
 }

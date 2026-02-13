@@ -6,6 +6,7 @@ import dev.langchain4j.model.ollama.OllamaEmbeddingModel
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel
 import hipporag.config.BaseConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.net.URI
 
 class LangChainEmbeddingFactory : EmbeddingModelFactory {
     private val logger = KotlinLogging.logger {}
@@ -70,7 +71,7 @@ class LangChainEmbeddingFactory : EmbeddingModelFactory {
                     .build()
             }
 
-            globalConfig.embeddingBaseUrl?.contains("ollama") == true -> {
+            isLikelyOllamaBaseUrl(globalConfig.embeddingBaseUrl) -> {
                 logger.warn {
                     "Ambiguous embedding provider. 'ollama' detected in embeddingBaseUrl, but embeddingProvider is not explicitly 'ollama'. Defaulting to Ollama."
                 }
@@ -98,5 +99,13 @@ class LangChainEmbeddingFactory : EmbeddingModelFactory {
                 builder.build()
             }
         }
+    }
+
+    private fun isLikelyOllamaBaseUrl(baseUrl: String?): Boolean {
+        if (baseUrl.isNullOrBlank()) return false
+        return runCatching {
+            val uri = URI(baseUrl)
+            uri.port == 11434
+        }.getOrDefault(false)
     }
 }

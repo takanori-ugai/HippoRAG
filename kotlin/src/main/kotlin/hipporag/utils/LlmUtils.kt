@@ -129,12 +129,10 @@ fun <T> retryWithBackoff(
 ): T {
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
     var attempt = 0
-    var lastError: Throwable? = null
     while (attempt < maxAttempts) {
         try {
             return block()
         } catch (e: Throwable) {
-            lastError = e
             if (!retryOn(e) || attempt == maxAttempts - 1) {
                 throw e
             }
