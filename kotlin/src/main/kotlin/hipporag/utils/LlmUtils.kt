@@ -3,6 +3,9 @@ package hipporag.utils
 import kotlin.math.min
 import kotlin.random.Random
 
+/**
+ * Filters duplicate or malformed triples to unique 3-item lists.
+ */
 fun filterInvalidTriples(triples: List<List<String>>): List<List<String>> {
     val uniqueTriples = mutableSetOf<List<String>>()
     val validTriples = mutableListOf<List<String>>()
@@ -18,6 +21,9 @@ fun filterInvalidTriples(triples: List<List<String>>): List<List<String>> {
     return validTriples
 }
 
+/**
+ * Decodes unicode escape sequences (e.g., `\\uXXXX`) in [content].
+ */
 fun safeUnicodeDecode(content: Any): String {
     val text =
         when (content) {
@@ -64,6 +70,9 @@ fun safeUnicodeDecode(content: Any): String {
     return builder.toString()
 }
 
+/**
+ * Attempts to repair truncated JSON by closing unbalanced brackets.
+ */
 fun fixBrokenGeneratedJson(jsonStr: String): String {
     fun findUnclosed(input: String): List<Char> {
         val unclosed = mutableListOf<Char>()
@@ -137,6 +146,9 @@ private fun findLastCommaOutsideString(input: String): Int {
     return lastCommaIndex
 }
 
+/**
+ * Executes [block] with exponential backoff and jitter.
+ */
 @Suppress("TooGenericExceptionCaught")
 fun <T> retryWithBackoff(
     maxAttempts: Int,
@@ -165,6 +177,9 @@ fun <T> retryWithBackoff(
     error("retryWithBackoff: unreachable")
 }
 
+/**
+ * Converts `{placeholder}` style strings to `${placeholder}` templates.
+ */
 fun convertFormatToTemplate(
     originalString: String,
     placeholderMapping: Map<String, String>? = null,

@@ -9,6 +9,11 @@ import kotlinx.serialization.builtins.serializer
 import java.io.File
 import kotlin.system.exitProcess
 
+/**
+ * CLI entry point for running indexing + QA over JSON input files.
+ *
+ * @param args CLI arguments parsed by [Args.parse].
+ */
 fun main(args: Array<String>) {
     val parsed = Args.parse(args)
 

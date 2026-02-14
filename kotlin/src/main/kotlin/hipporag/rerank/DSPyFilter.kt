@@ -15,6 +15,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
+/**
+ * DSPy-inspired reranker that filters candidate facts using an LLM prompt.
+ */
 class DSPyFilter(
     private val llmModel: BaseLLM,
     private val rerankDspyFilePath: String? = null,
@@ -42,6 +45,9 @@ class DSPyFilter(
         [[ ## completed ## ]]
         """.trimIndent()
 
+    /**
+     * Reranks [candidateFacts] for [query], returning filtered indices and facts.
+     */
     fun rerank(
         query: String,
         candidateFacts: List<List<String>>,

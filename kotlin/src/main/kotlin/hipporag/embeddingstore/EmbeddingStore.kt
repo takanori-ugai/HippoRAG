@@ -8,6 +8,13 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.Serializable
 import java.io.File
 
+/**
+ * Simple JSON-backed embedding store keyed by hashed text IDs.
+ *
+ * @param embeddingModel model used to compute embeddings (required for inserts).
+ * @param dbDirectory directory where the store file is persisted.
+ * @param namespace prefix used to generate hash IDs.
+ */
 class EmbeddingStore(
     private val embeddingModel: BaseEmbeddingModel?,
     private val dbDirectory: String,
@@ -26,6 +33,8 @@ class EmbeddingStore(
     private val hashIdToText = mutableMapOf<String, String>()
 
     private var _textToHashId: Map<String, String> = emptyMap()
+
+    /** Mapping from stored text content to hash IDs. */
     val textToHashId: Map<String, String> get() = _textToHashId
 
     init {
@@ -48,6 +57,9 @@ class EmbeddingStore(
         return nodesDict
     }
 
+    /**
+     * Returns hash IDs for [texts] that are not yet present in the store.
+     */
     fun getMissingStringHashIds(texts: List<String>): Map<String, EmbeddingRow> {
         val nodesDict = buildNodesDict(texts)
 
@@ -57,6 +69,9 @@ class EmbeddingStore(
         return missingIds.associateWith { id -> nodesDict.getValue(id) }
     }
 
+    /**
+     * Inserts [texts] into the store, computing embeddings for missing entries.
+     */
     fun insertStrings(texts: List<String>) {
         val nodesDict = buildNodesDict(texts)
 
@@ -77,26 +92,34 @@ class EmbeddingStore(
         upsert(missingIds, textsToEncode, missingEmbeddings)
     }
 
+    /** Returns a copy of all stored rows keyed by hash ID. */
     fun getAllIdToRows(): Map<String, EmbeddingRow> = hashIdToRow.toMap()
 
+    /** Returns all stored hash IDs. */
     fun getAllIds(): List<String> = hashIds.toList()
 
+    /** Returns all stored text contents. */
     fun getAllTexts(): Set<String> = hashIdToRow.values.map { it.content }.toSet()
 
+    /** Returns the stored row for [hashId]. */
     fun getRow(hashId: String): EmbeddingRow = hashIdToRow.getValue(hashId)
 
+    /** Returns the hash ID for [text] or throws if missing. */
     fun getHashId(text: String): String = textToHashId[text] ?: error("Text not found in embedding store.")
 
+    /** Returns rows for the provided [hashIds]. */
     fun getRows(hashIds: List<String>): Map<String, EmbeddingRow> {
         if (hashIds.isEmpty()) return emptyMap()
         return hashIds.associateWith { id -> hashIdToRow.getValue(id) }
     }
 
+    /** Returns the embedding vector for [hashId]. */
     fun getEmbedding(hashId: String): DoubleArray {
         val idx = hashIdToIdx.getValue(hashId)
         return embeddings[idx]
     }
 
+    /** Returns embedding vectors for the provided [hashIds]. */
     fun getEmbeddings(hashIds: List<String>): Array<DoubleArray> {
         if (hashIds.isEmpty()) return emptyArray()
         return hashIds
@@ -106,6 +129,9 @@ class EmbeddingStore(
             }.toTypedArray()
     }
 
+    /**
+     * Deletes embeddings by [hashIds] and persists the updated store.
+     */
     fun delete(hashIds: Collection<String>) {
         val indices = hashIds.mapNotNull { hashIdToIdx[it] }.distinct().sortedDescending()
         for (idx in indices) {

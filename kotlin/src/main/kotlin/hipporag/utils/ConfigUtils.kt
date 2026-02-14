@@ -10,6 +10,9 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
+/**
+ * Loads a [BaseConfig] from a JSON file at [path].
+ */
 fun loadConfigFromJson(path: String): BaseConfig {
     val text = File(path).readText()
     val json = jsonWithDefaults { ignoreUnknownKeys = true }
@@ -21,6 +24,9 @@ fun loadConfigFromJson(path: String): BaseConfig {
     return config
 }
 
+/**
+ * Applies JSON override values to an existing [config].
+ */
 fun applyConfigOverrides(
     config: BaseConfig,
     overrides: JsonObject,

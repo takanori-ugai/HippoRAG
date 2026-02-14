@@ -17,17 +17,26 @@ import java.net.JarURLConnection
 import java.net.URL
 import kotlin.OptIn
 
+/**
+ * Loads and renders prompt templates with simple variable substitution.
+ */
 class PromptTemplateManager(
     private val roleMapping: Map<String, String>,
 ) {
     private val logger = KotlinLogging.logger {}
     private val templates: Map<String, PromptTemplate> = PromptTemplates.templates
 
+    /**
+     * Renders a template named [name] with a single `prompt_user` variable.
+     */
     fun render(
         name: String,
         promptUser: String,
     ): List<Message> = render(name, mapOf("prompt_user" to promptUser))
 
+    /**
+     * Renders a template named [name] with arbitrary [variables].
+     */
     fun render(
         name: String,
         variables: Map<String, String>,
@@ -49,8 +58,10 @@ class PromptTemplateManager(
         }
     }
 
+    /** Returns all available template names. */
     fun listTemplateNames(): List<String> = templates.keys.toList()
 
+    /** Returns true if [name] exists in the template catalog. */
     fun isTemplateNameValid(name: String): Boolean = templates.containsKey(name)
 
     private fun substitute(
@@ -68,15 +79,28 @@ class PromptTemplateManager(
     }
 }
 
+/**
+ * Sealed prompt template representation loaded from JSON resources.
+ */
 @Serializable
 @JsonClassDiscriminator("type")
 sealed class PromptTemplate {
+    /**
+     * Plain text template.
+     *
+     * @property template template string with placeholders.
+     */
     @Serializable
     @SerialName("text")
     data class Text(
         val template: String,
     ) : PromptTemplate()
 
+    /**
+     * Multi-message chat template.
+     *
+     * @property messages ordered message templates.
+     */
     @Serializable
     @SerialName("chat")
     data class Chat(
@@ -84,15 +108,25 @@ sealed class PromptTemplate {
     ) : PromptTemplate()
 }
 
+/**
+ * Template entry for an individual chat message.
+ *
+ * @property role message role (e.g., system/user/assistant).
+ * @property content message content with variable placeholders.
+ */
 @Serializable
 data class PromptMessageTemplate(
     val role: String,
     val content: String,
 )
 
+/**
+ * Lazily-loaded prompt template catalog.
+ */
 object PromptTemplates {
     private val logger = KotlinLogging.logger {}
 
+    /** Loaded templates keyed by name. */
     val templates: Map<String, PromptTemplate> by lazy {
         loadTemplates()
     }

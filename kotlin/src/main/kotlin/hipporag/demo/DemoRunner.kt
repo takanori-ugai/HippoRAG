@@ -7,6 +7,12 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import java.io.File
 
+/**
+ * Runs a demo workflow that loads docs/queries from JSON and executes HippoRAG.
+ *
+ * @param args CLI arguments parsed by [DemoArgs.parse].
+ * @param configure callback to customize [BaseConfig] based on parsed args.
+ */
 fun runDemo(
     args: Array<String>,
     configure: (BaseConfig, DemoArgs) -> Unit,

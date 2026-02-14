@@ -44,6 +44,18 @@ import kotlin.math.min
 // It intentionally references external components (LLM, embeddings, OpenIE, etc.)
 // that will be implemented elsewhere in the Kotlin port.
 
+/**
+ * Core HIPPO-RAG pipeline that builds the graph index and answers queries.
+ *
+ * @param initialConfig optional base configuration to copy.
+ * @param saveDir optional override for [BaseConfig.saveDir].
+ * @param llmModelName optional override for [BaseConfig.llmName].
+ * @param llmBaseUrl optional override for [BaseConfig.llmBaseUrl].
+ * @param embeddingModelName optional override for [BaseConfig.embeddingModelName].
+ * @param embeddingBaseUrl optional override for [BaseConfig.embeddingBaseUrl].
+ * @param azureEndpoint optional Azure OpenAI endpoint override.
+ * @param azureEmbeddingEndpoint optional Azure OpenAI embedding endpoint override.
+ */
 class HippoRag(
     initialConfig: BaseConfig? = null,
     saveDir: String? = null,
@@ -58,6 +70,7 @@ class HippoRag(
 
     private val logger = KotlinLogging.logger {}
 
+    /** Effective configuration copied from [initialConfig] with any overrides applied. */
     val globalConfig: BaseConfig = (initialConfig ?: BaseConfig()).copy()
 
     private val workingDir: String
@@ -200,6 +213,9 @@ class HippoRag(
         }
     }
 
+    /**
+     * Runs offline OpenIE extraction over [docs] and persists results for later indexing.
+     */
     fun preOpenie(docs: List<String>) {
         logger.info { "Indexing Documents" }
         logger.info { "Performing OpenIE Offline" }
@@ -220,6 +236,9 @@ class HippoRag(
         logger.info { "Offline OpenIE complete. Run online indexing for future retrieval." }
     }
 
+    /**
+     * Indexes documents into the graph and embedding stores.
+     */
     fun index(docs: List<String>) {
         logger.info { "Indexing Documents" }
         logger.info { "Performing OpenIE" }
@@ -281,6 +300,9 @@ class HippoRag(
         }
     }
 
+    /**
+     * Deletes documents and related graph nodes from the index.
+     */
     fun delete(docsToDelete: List<String>) {
         if (!readyToRetrieve) {
             prepareRetrievalObjects()
@@ -351,6 +373,11 @@ class HippoRag(
         readyToRetrieve = false
     }
 
+    /**
+     * Retrieves passages for [queries] using graph-aware retrieval.
+     *
+     * @return a pair of solutions and optional recall metrics (when [goldDocs] is provided).
+     */
     fun retrieve(
         queries: List<String>,
         numToRetrieve: Int? = null,
@@ -435,6 +462,11 @@ class HippoRag(
         return retrievalResults to null
     }
 
+    /**
+     * Runs retrieval + LLM QA for [queries].
+     *
+     * @return a [RagQaResult] with answers and optional evaluation metrics.
+     */
     fun ragQa(
         queries: List<String>,
         goldDocs: List<List<String>>? = null,
@@ -453,6 +485,9 @@ class HippoRag(
         )
     }
 
+    /**
+     * Runs LLM QA over precomputed retrieval [queries].
+     */
     fun ragQaWithSolutions(
         queries: List<QuerySolution>,
         goldDocs: List<List<String>>? = null,
@@ -521,6 +556,11 @@ class HippoRag(
         )
     }
 
+    /**
+     * Retrieves passages using dense passage retrieval (DPR) only.
+     *
+     * @return a pair of solutions and optional recall metrics (when [goldDocs] is provided).
+     */
     fun retrieveDpr(
         queries: List<String>,
         numToRetrieve: Int? = null,
@@ -581,6 +621,9 @@ class HippoRag(
         return retrievalResults to null
     }
 
+    /**
+     * Runs DPR-only retrieval + LLM QA for [queries].
+     */
     fun ragQaDpr(
         queries: List<String>,
         goldDocs: List<List<String>>? = null,
@@ -599,6 +642,9 @@ class HippoRag(
         )
     }
 
+    /**
+     * Runs LLM QA over precomputed DPR retrieval [queries].
+     */
     fun ragQaDprWithSolutions(
         queries: List<QuerySolution>,
         goldDocs: List<List<String>>? = null,
@@ -611,6 +657,11 @@ class HippoRag(
             overallRetrievalResult = null,
         )
 
+    /**
+     * Executes QA prompts over retrieved passages.
+     *
+     * @return updated solutions, response messages, and per-response metadata.
+     */
     fun qa(queries: List<QuerySolution>): Triple<List<QuerySolution>, List<String>, List<Map<String, Any?>>> {
         val allQaMessages = mutableListOf<List<Message>>()
 

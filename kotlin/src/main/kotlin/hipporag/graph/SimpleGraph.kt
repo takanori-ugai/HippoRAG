@@ -4,6 +4,11 @@ import hipporag.utils.jsonWithDefaults
 import kotlinx.serialization.Serializable
 import java.io.File
 
+/**
+ * Lightweight in-memory graph with serialization support.
+ *
+ * @param directed whether edges are directed.
+ */
 class SimpleGraph(
     private val directed: Boolean,
 ) {
@@ -11,12 +16,18 @@ class SimpleGraph(
     private val edges = mutableListOf<Edge>()
     private val nameToIndex = mutableMapOf<String, Int>()
 
+    /** Returns the number of vertices. */
     fun vcount(): Int = vertices.size
 
+    /** Returns the number of edges. */
     fun ecount(): Int = edges.size
 
+    /** Returns the list of vertex names (if present). */
     fun vertexNames(): List<String> = vertices.mapNotNull { it["name"]?.toString() }
 
+    /**
+     * Adds vertices using columnar [attributes], where each list element is a vertex attribute value.
+     */
     fun addVertices(attributes: Map<String, List<Any>>) {
         if (attributes.isEmpty()) return
         val count = attributes.values.first().size
@@ -34,6 +45,9 @@ class SimpleGraph(
         }
     }
 
+    /**
+     * Adds edges between named vertices with the supplied [weights].
+     */
     fun addEdges(
         edgePairs: List<Pair<String, String>>,
         weights: List<Double>,
@@ -47,6 +61,9 @@ class SimpleGraph(
         }
     }
 
+    /**
+     * Deletes vertices by name, removing associated edges.
+     */
     fun deleteVertices(names: List<String>) {
         if (names.isEmpty()) return
         val removeSet = names.toSet()
@@ -82,6 +99,12 @@ class SimpleGraph(
         }
     }
 
+    /**
+     * Computes personalized PageRank scores for all vertices.
+     *
+     * @param reset per-vertex reset probabilities (unnormalized).
+     * @param damping damping factor.
+     */
     fun personalizedPageRank(
         reset: DoubleArray,
         damping: Double,
@@ -128,6 +151,9 @@ class SimpleGraph(
         return scores
     }
 
+    /**
+     * Serializes the graph into [file].
+     */
     fun save(file: File) {
         val data =
             GraphData(
@@ -140,6 +166,9 @@ class SimpleGraph(
     }
 
     companion object {
+        /**
+         * Loads a [SimpleGraph] from [file].
+         */
         fun load(file: File): SimpleGraph {
             val json = jsonWithDefaults { ignoreUnknownKeys = true }
             val data = json.decodeFromString(GraphData.serializer(), file.readText())
@@ -178,6 +207,13 @@ class SimpleGraph(
     )
 }
 
+/**
+ * Serialized graph container.
+ *
+ * @property directed whether the graph is directed.
+ * @property vertices vertex attribute maps.
+ * @property edges edge list.
+ */
 @Serializable
 data class GraphData(
     val directed: Boolean,
@@ -185,6 +221,13 @@ data class GraphData(
     val edges: List<EdgeData>,
 )
 
+/**
+ * Serialized edge record.
+ *
+ * @property source source vertex index.
+ * @property target target vertex index.
+ * @property weight edge weight.
+ */
 @Serializable
 data class EdgeData(
     val source: Int,

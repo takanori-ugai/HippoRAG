@@ -8,9 +8,15 @@ import dev.langchain4j.model.chat.ChatModel
 import hipporag.utils.LlmResult
 import hipporag.utils.Message
 
+/**
+ * Adapter for LangChain4j chat models to the [BaseLLM] interface.
+ */
 class LangChainChatLLM(
     private val model: ChatModel,
 ) : BaseLLM {
+    /**
+     * Sends [messages] to the underlying LangChain4j model.
+     */
     override fun infer(messages: List<Message>): LlmResult {
         val chatMessages = messages.map { toChatMessage(it) }
         val response = model.chat(chatMessages)

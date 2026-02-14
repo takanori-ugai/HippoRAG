@@ -8,6 +8,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Builds an LLM client from [globalConfig].
+ */
 fun getLlm(globalConfig: BaseConfig): BaseLLM {
     val provider = globalConfig.llmProvider?.lowercase()
     val modelName = globalConfig.llmName

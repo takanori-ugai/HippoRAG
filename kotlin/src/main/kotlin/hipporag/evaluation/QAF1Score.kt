@@ -2,7 +2,13 @@ package hipporag.evaluation
 
 import hipporag.utils.normalizeAnswer
 
+/**
+ * Token-level F1 evaluator for QA predictions.
+ */
 class QAF1Score {
+    /**
+     * Calculates F1 metrics for the provided answers.
+     */
     fun calculateMetricScores(
         goldAnswers: List<List<String>>,
         predictedAnswers: List<String>,

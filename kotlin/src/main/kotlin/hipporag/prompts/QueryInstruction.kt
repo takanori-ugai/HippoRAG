@@ -11,4 +11,7 @@ private val instructions =
         "query_to_passage" to DEFAULT_INSTRUCTION,
     )
 
+/**
+ * Returns the instruction string for a query embedding variant.
+ */
 fun getQueryInstruction(name: String): String = instructions[name] ?: DEFAULT_INSTRUCTION

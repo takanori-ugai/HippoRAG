@@ -2,6 +2,19 @@ package hipporag.demo
 
 import kotlin.system.exitProcess
 
+/**
+ * Parsed CLI arguments for demo entry points.
+ *
+ * @property docsPath path to a JSON array of documents.
+ * @property queriesPath path to a JSON array of queries.
+ * @property saveDir output directory for artifacts.
+ * @property llmName LLM model name.
+ * @property embeddingName embedding model name.
+ * @property llmBaseUrl optional base URL for LLM provider.
+ * @property embeddingBaseUrl optional base URL for embedding provider.
+ * @property azureEndpoint optional Azure OpenAI endpoint.
+ * @property azureEmbeddingEndpoint optional Azure OpenAI embedding endpoint.
+ */
 data class DemoArgs(
     val docsPath: String,
     val queriesPath: String,
@@ -14,6 +27,9 @@ data class DemoArgs(
     val azureEmbeddingEndpoint: String?,
 ) {
     companion object {
+        /**
+         * Parses CLI arguments into a [DemoArgs] instance.
+         */
         fun parse(args: Array<String>): DemoArgs {
             val map = mutableMapOf<String, String>()
             var i = 0

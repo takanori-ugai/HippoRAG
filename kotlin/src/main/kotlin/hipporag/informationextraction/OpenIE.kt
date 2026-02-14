@@ -21,10 +21,19 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+/**
+ * Common interface for OpenIE extraction implementations.
+ */
 interface OpenIEBase {
+    /**
+     * Extracts named entities and triples for each row keyed by chunk ID.
+     */
     fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>>
 }
 
+/**
+ * Online OpenIE extractor that calls an LLM for NER and triple extraction.
+ */
 class OpenIE(
     private val llmModel: BaseLLM,
 ) : OpenIEBase {
@@ -91,6 +100,9 @@ class OpenIE(
         }
     }
 
+    /**
+     * Runs NER followed by triple extraction for each provided row.
+     */
     override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> {
         val nerResults = mutableMapOf<String, NerRawOutput>()
         val tripleResults = mutableMapOf<String, TripleRawOutput>()
@@ -182,6 +194,9 @@ private fun twoPhaseOpenie(
     return nerResults to tripleResults
 }
 
+/**
+ * Offline OpenIE extractor that performs two-phase extraction with a local model.
+ */
 class VllmOfflineOpenIE(
     private val llmModel: BaseLLM,
 ) : OpenIEBase {
@@ -192,10 +207,16 @@ class VllmOfflineOpenIE(
         )
     private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
+    /**
+     * Runs two-phase OpenIE extraction for each provided row.
+     */
     override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> =
         twoPhaseOpenie(llmModel, logger, promptTemplateManager, json, rows)
 }
 
+/**
+ * Offline OpenIE extractor that targets transformer-based local models.
+ */
 class TransformersOfflineOpenIE(
     private val llmModel: BaseLLM,
 ) : OpenIEBase {
@@ -206,6 +227,9 @@ class TransformersOfflineOpenIE(
         )
     private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
+    /**
+     * Runs two-phase OpenIE extraction for each provided row.
+     */
     override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> =
         twoPhaseOpenie(llmModel, logger, promptTemplateManager, json, rows)
 }

@@ -8,9 +8,15 @@ import hipporag.config.BaseConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.net.URI
 
+/**
+ * Builds LangChain4j-backed embedding models based on [BaseConfig].
+ */
 class LangChainEmbeddingFactory : EmbeddingModelFactory {
     private val logger = KotlinLogging.logger {}
 
+    /**
+     * Creates a LangChain4j embedding model wrapped in [BaseEmbeddingModel].
+     */
     override fun create(
         globalConfig: BaseConfig,
         embeddingModelName: String,

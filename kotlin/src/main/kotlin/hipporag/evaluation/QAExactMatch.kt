@@ -2,7 +2,13 @@ package hipporag.evaluation
 
 import hipporag.utils.normalizeAnswer
 
+/**
+ * Exact match evaluator for QA predictions.
+ */
 class QAExactMatch {
+    /**
+     * Calculates exact match metrics for the provided answers.
+     */
     fun calculateMetricScores(
         goldAnswers: List<List<String>>,
         predictedAnswers: List<String>,

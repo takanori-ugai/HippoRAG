@@ -1,5 +1,59 @@
 package hipporag.config
 
+/**
+ * Runtime configuration for the HippoRAG pipeline.
+ *
+ * @property saveDir output directory for artifacts.
+ * @property llmName LLM model name.
+ * @property embeddingModelName embedding model name.
+ * @property llmBaseUrl optional base URL for LLM provider.
+ * @property embeddingBaseUrl optional base URL for embedding provider.
+ * @property azureEndpoint optional Azure OpenAI chat endpoint.
+ * @property azureEmbeddingEndpoint optional Azure OpenAI embedding endpoint.
+ * @property llmProvider optional provider hint ("openai", "azure", "ollama").
+ * @property openAiApiKey OpenAI API key override.
+ * @property azureApiKey Azure API key override.
+ * @property azureDeploymentName Azure chat deployment name.
+ * @property ollamaBaseUrl Ollama base URL.
+ * @property ollamaModelName Ollama chat model name.
+ * @property embeddingProvider optional embedding provider hint.
+ * @property azureEmbeddingDeploymentName Azure embedding deployment name.
+ * @property ollamaEmbeddingModelName Ollama embedding model name.
+ * @property rerankDspyFilePath optional path to DSPy rerank prompt JSON.
+ * @property maxNewTokens maximum tokens to generate.
+ * @property numGenChoices number of generation choices.
+ * @property seed optional random seed.
+ * @property temperature sampling temperature.
+ * @property maxRetryAttempts retry attempts for LLM calls.
+ * @property responseFormat optional response format override.
+ * @property openieMode OpenIE mode ("online", "offline", or "transformers-offline").
+ * @property informationExtractionModelName information extraction model name.
+ * @property skipGraph whether to skip graph construction.
+ * @property forceIndexFromScratch whether to rebuild index even if cached.
+ * @property forceOpenieFromScratch whether to rerun OpenIE even if cached.
+ * @property isDirectedGraph whether the graph is directed.
+ * @property embeddingBatchSize embedding batch size.
+ * @property embeddingReturnAsNormalized whether embeddings should be normalized.
+ * @property embeddingMaxSeqLen max sequence length for embeddings.
+ * @property embeddingModelDtype embedding model dtype string.
+ * @property retrievalTopK retrieval top-k for documents.
+ * @property linkingTopK top-k entities for graph linking.
+ * @property passageNodeWeight weight for passage nodes in graph search.
+ * @property dataset dataset name for prompt selection.
+ * @property maxQaSteps max QA steps (reserved for future use).
+ * @property qaTopK top-k passages used for QA prompts.
+ * @property synonymyEdgeTopK top-k for synonymy edge creation.
+ * @property synonymyEdgeQueryBatchSize batch size for synonymy queries.
+ * @property synonymyEdgeKeyBatchSize batch size for synonymy keys.
+ * @property synonymyEdgeSimThreshold similarity threshold for synonymy edges.
+ * @property saveOpenie whether to persist OpenIE results.
+ * @property damping damping factor for PPR.
+ * @property textPreprocessorClassName text preprocessor class name.
+ * @property preprocessEncoderName encoder name for preprocessing.
+ * @property preprocessChunkOverlapTokenSize overlap size for chunking.
+ * @property preprocessChunkMaxTokenSize max chunk token size.
+ * @property preprocessChunkFunc chunking strategy identifier.
+ */
 data class BaseConfig(
     var saveDir: String = "outputs",
     var llmName: String = "gpt-4o-mini",
@@ -52,6 +106,9 @@ data class BaseConfig(
     var preprocessChunkMaxTokenSize: Int? = null,
     var preprocessChunkFunc: String = "by_token",
 ) {
+    /**
+     * Returns a map representation of the configuration, masking API keys.
+     */
     fun toMap(): Map<String, Any?> =
         mapOf(
             "saveDir" to saveDir,
