@@ -5,14 +5,15 @@ import hipporag.utils.EmbeddingRow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import java.io.File
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.assertFalse
-import kotlin.test.assertFailsWith
 import org.junit.After
 import org.junit.Before
+import java.io.File
+import kotlin.io.path.createTempDirectory
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class EmbeddingStoreTest {
     private lateinit var tempDir: File
@@ -20,7 +21,7 @@ class EmbeddingStoreTest {
 
     @Before
     fun setup() {
-        tempDir = createTempDir("embedding_store_test")
+        tempDir = createTempDirectory("embedding_store_test").toFile()
         embeddingModel = mockk<BaseEmbeddingModel>()
     }
 
@@ -38,10 +39,11 @@ class EmbeddingStoreTest {
 
     @Test
     fun testInsertStrings() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3),
-            doubleArrayOf(0.4, 0.5, 0.6)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+                doubleArrayOf(0.4, 0.5, 0.6),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         val texts = listOf("text1", "text2")
@@ -59,9 +61,10 @@ class EmbeddingStoreTest {
 
     @Test
     fun testInsertStringsDuplicates() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         val texts = listOf("text1", "text1", "text1")
@@ -73,9 +76,10 @@ class EmbeddingStoreTest {
 
     @Test
     fun testGetMissingStringHashIds() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1"))
@@ -87,9 +91,10 @@ class EmbeddingStoreTest {
 
     @Test
     fun testGetRow() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1"))
@@ -102,9 +107,10 @@ class EmbeddingStoreTest {
 
     @Test
     fun testGetEmbedding() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1"))
@@ -119,10 +125,11 @@ class EmbeddingStoreTest {
 
     @Test
     fun testGetEmbeddings() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3),
-            doubleArrayOf(0.4, 0.5, 0.6)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+                doubleArrayOf(0.4, 0.5, 0.6),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1", "text2"))
@@ -135,11 +142,12 @@ class EmbeddingStoreTest {
 
     @Test
     fun testDelete() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3),
-            doubleArrayOf(0.4, 0.5, 0.6),
-            doubleArrayOf(0.7, 0.8, 0.9)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+                doubleArrayOf(0.4, 0.5, 0.6),
+                doubleArrayOf(0.7, 0.8, 0.9),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1", "text2", "text3"))
@@ -155,10 +163,11 @@ class EmbeddingStoreTest {
 
     @Test
     fun testGetAllIdToRows() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3),
-            doubleArrayOf(0.4, 0.5, 0.6)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+                doubleArrayOf(0.4, 0.5, 0.6),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1", "text2"))
@@ -171,10 +180,11 @@ class EmbeddingStoreTest {
 
     @Test
     fun testGetRows() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3),
-            doubleArrayOf(0.4, 0.5, 0.6)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+                doubleArrayOf(0.4, 0.5, 0.6),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1", "text2"))
@@ -188,9 +198,10 @@ class EmbeddingStoreTest {
 
     @Test
     fun testPersistenceAcrossInstances() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+            )
 
         val store1 = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store1.insertStrings(listOf("text1"))
@@ -205,9 +216,10 @@ class EmbeddingStoreTest {
 
     @Test
     fun testTextToHashIdMapping() {
-        every { embeddingModel.batchEncode(any()) } returns arrayOf(
-            doubleArrayOf(0.1, 0.2, 0.3)
-        )
+        every { embeddingModel.batchEncode(any()) } returns
+            arrayOf(
+                doubleArrayOf(0.1, 0.2, 0.3),
+            )
 
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
         store.insertStrings(listOf("text1"))
@@ -222,7 +234,7 @@ class EmbeddingStoreTest {
     @Test
     fun testGetHashIdNotFoundThrows() {
         val store = EmbeddingStore(embeddingModel, tempDir.path, "test")
-        assertFailsWith<NoSuchElementException> {
+        assertFailsWith<IllegalStateException> {
             store.getHashId("nonexistent")
         }
     }

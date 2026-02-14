@@ -2,20 +2,22 @@ package hipporag
 
 import hipporag.config.BaseConfig
 import hipporag.utils.loadConfigFromJson
-import java.io.File
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.assertNotNull
 import org.junit.After
 import org.junit.Before
+import java.io.File
+import kotlin.io.path.createTempDirectory
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class MainTest {
     private lateinit var tempDir: File
 
     @Before
     fun setup() {
-        tempDir = createTempDir("main_test")
+        val baseDir = File(".").canonicalFile
+        tempDir = createTempDirectory(baseDir.toPath(), "main_test").toFile()
     }
 
     @After
@@ -34,19 +36,31 @@ class MainTest {
 
     @Test
     fun testArgsParseOptionalFields() {
-        val args = arrayOf(
-            "--docs", "docs.json",
-            "--queries", "queries.json",
-            "--config", "config.json",
-            "--save_dir", "outputs",
-            "--llm_name", "gpt-4",
-            "--llm_base_url", "http://localhost:8080",
-            "--embedding_name", "my-embedding",
-            "--openie_mode", "offline",
-            "--force_index_from_scratch", "true",
-            "--force_openie_from_scratch", "false",
-            "--rerank_dspy_file_path", "rerank.json"
-        )
+        val args =
+            arrayOf(
+                "--docs",
+                "docs.json",
+                "--queries",
+                "queries.json",
+                "--config",
+                "config.json",
+                "--save_dir",
+                "outputs",
+                "--llm_name",
+                "gpt-4",
+                "--llm_base_url",
+                "http://localhost:8080",
+                "--embedding_name",
+                "my-embedding",
+                "--openie_mode",
+                "offline",
+                "--force_index_from_scratch",
+                "true",
+                "--force_openie_from_scratch",
+                "false",
+                "--rerank_dspy_file_path",
+                "rerank.json",
+            )
         val parsed = Args.parse(args)
 
         assertEquals("docs.json", parsed.docsPath)
@@ -69,7 +83,6 @@ class MainTest {
 
         val resolvedPath = testFile.canonicalPath
         val baseDir = File(".").canonicalFile
-        val relativePath = resolvedPath.removePrefix(baseDir.path + File.separator)
 
         assertTrue(resolvedPath.startsWith(baseDir.path))
     }
@@ -93,7 +106,7 @@ class MainTest {
                 "saveDir": "custom_outputs",
                 "llmName": "test-model",
                 "temperature": 0.5
-            }"""
+            }""",
         )
 
         val config = loadConfigFromJson(configFile.path)
@@ -104,28 +117,30 @@ class MainTest {
 
     @Test
     fun testPrintAnswersFormat() {
-        val solutions = listOf(
-            hipporag.utils.QuerySolution(
-                question = "What is 2+2?",
-                docs = listOf("Doc1"),
-                docScores = doubleArrayOf(1.0),
-                answer = "4"
-            ),
-            hipporag.utils.QuerySolution(
-                question = "What is the capital?",
-                docs = listOf("Doc2"),
-                docScores = doubleArrayOf(0.9),
-                answer = null
+        val solutions =
+            listOf(
+                hipporag.utils.QuerySolution(
+                    question = "What is 2+2?",
+                    docs = listOf("Doc1"),
+                    docScores = doubleArrayOf(1.0),
+                    answer = "4",
+                ),
+                hipporag.utils.QuerySolution(
+                    question = "What is the capital?",
+                    docs = listOf("Doc2"),
+                    docScores = doubleArrayOf(0.9),
+                    answer = null,
+                ),
             )
-        )
 
-        val result = hipporag.utils.RagQaResult(
-            solutions = solutions,
-            responseMessages = listOf("Response1", "Response2"),
-            metadata = listOf(emptyMap(), emptyMap()),
-            overallRetrievalResult = null,
-            overallQaResults = null
-        )
+        val result =
+            hipporag.utils.RagQaResult(
+                solutions = solutions,
+                responseMessages = listOf("Response1", "Response2"),
+                metadata = listOf(emptyMap(), emptyMap()),
+                overallRetrievalResult = null,
+                overallQaResults = null,
+            )
 
         assertNotNull(result.solutions)
         assertEquals(2, result.solutions.size)
@@ -187,12 +202,17 @@ class MainTest {
 
     @Test
     fun testMultipleArgsParsing() {
-        val args = arrayOf(
-            "--docs", "docs.json",
-            "--queries", "queries.json",
-            "--save_dir", "out1",
-            "--llm_name", "model1"
-        )
+        val args =
+            arrayOf(
+                "--docs",
+                "docs.json",
+                "--queries",
+                "queries.json",
+                "--save_dir",
+                "out1",
+                "--llm_name",
+                "model1",
+            )
         val parsed = Args.parse(args)
 
         assertEquals("out1", parsed.saveDir)
@@ -219,15 +239,13 @@ private data class Args(
             var i = 0
             while (i < args.size) {
                 val key = args[i]
-                if (!key.startsWith("--") || i + 1 >= args.size) {
-                    throw IllegalArgumentException("Invalid args")
-                }
+                require(key.startsWith("--") && i + 1 < args.size) { "Invalid args" }
                 map[key.removePrefix("--")] = args[i + 1]
                 i += 2
             }
 
-            val docs = map["docs"] ?: throw IllegalArgumentException("Missing --docs")
-            val queries = map["queries"] ?: throw IllegalArgumentException("Missing --queries")
+            val docs = requireNotNull(map["docs"]) { "Missing --docs" }
+            val queries = requireNotNull(map["queries"]) { "Missing --queries" }
 
             return Args(
                 docsPath = docs,

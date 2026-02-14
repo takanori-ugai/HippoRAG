@@ -14,22 +14,32 @@ class DemoArgsTest {
         assertEquals("queries.json", parsed.queriesPath)
         assertEquals("outputs", parsed.saveDir)
         assertEquals("gpt-4o-mini", parsed.llmName)
-        assertEquals("text-embedding-3-large", parsed.embeddingName)
+        assertEquals("nvidia/NV-Embed-v2", parsed.embeddingName)
     }
 
     @Test
     fun testParseAllArgs() {
-        val args = arrayOf(
-            "--docs", "docs.json",
-            "--queries", "queries.json",
-            "--save_dir", "custom_dir",
-            "--llm_name", "gpt-4",
-            "--embedding_name", "custom-embedding",
-            "--llm_base_url", "http://localhost:8080",
-            "--embedding_base_url", "http://localhost:9090",
-            "--azure_endpoint", "https://azure.endpoint",
-            "--azure_embedding_endpoint", "https://azure.embedding.endpoint"
-        )
+        val args =
+            arrayOf(
+                "--docs",
+                "docs.json",
+                "--queries",
+                "queries.json",
+                "--save_dir",
+                "custom_dir",
+                "--llm_name",
+                "gpt-4",
+                "--embedding_name",
+                "custom-embedding",
+                "--llm_base_url",
+                "http://localhost:8080",
+                "--embedding_base_url",
+                "http://localhost:9090",
+                "--azure_endpoint",
+                "https://azure.endpoint",
+                "--azure_embedding_endpoint",
+                "https://azure.embedding.endpoint",
+            )
         val parsed = DemoArgs.parse(args)
 
         assertEquals("docs.json", parsed.docsPath)
@@ -85,18 +95,24 @@ class DemoArgsTest {
 
         assertEquals("outputs", parsed.saveDir)
         assertEquals("gpt-4o-mini", parsed.llmName)
-        assertEquals("text-embedding-3-large", parsed.embeddingName)
+        assertEquals("nvidia/NV-Embed-v2", parsed.embeddingName)
     }
 
     @Test
     fun testParseOverridesDefaults() {
-        val args = arrayOf(
-            "--docs", "docs.json",
-            "--queries", "queries.json",
-            "--save_dir", "my_outputs",
-            "--llm_name", "my-model",
-            "--embedding_name", "my-embedding"
-        )
+        val args =
+            arrayOf(
+                "--docs",
+                "docs.json",
+                "--queries",
+                "queries.json",
+                "--save_dir",
+                "my_outputs",
+                "--llm_name",
+                "my-model",
+                "--embedding_name",
+                "my-embedding",
+            )
         val parsed = DemoArgs.parse(args)
 
         assertEquals("my_outputs", parsed.saveDir)

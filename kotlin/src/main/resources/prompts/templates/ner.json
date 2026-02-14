@@ -1,0 +1,13 @@
+{
+  "type": "chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Extract named entities from the passage.\nPassage: ${passage}"
+    },
+    {
+      "role": "user",
+      "content": "${prompt_user}"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Extract triples from the passage.\nPassage: ${passage}\nNamed entities: ${named_entity_json}"
+    },
+    {
+      "role": "user",
+      "content": "${prompt_user}"
+    }
+  ]
+}

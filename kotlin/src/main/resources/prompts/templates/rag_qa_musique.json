@@ -1,0 +1,13 @@
+{
+  "type": "chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Answer the question using the provided context."
+    },
+    {
+      "role": "user",
+      "content": "Question: ${prompt_user}"
+    }
+  ]
+}

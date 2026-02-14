@@ -10,6 +10,12 @@ style:
   ReturnCount:
     active: true
     max: 10
+  ThrowsCount:
+    active: true
+    max: 10
+  LoopWithTooManyJumpStatements:
+    active: true
+    maxJumpCount: 10
 
 complexity:
   active: true

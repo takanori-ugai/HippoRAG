@@ -1184,7 +1184,8 @@ class HippoRag(
         val nonZeroCount = allPhraseWeights.count { it != 0.0 }
         if (nonZeroCount != filteredMap.size) {
             logger.warn {
-                "Phrase weight count ($nonZeroCount) does not match filtered map size (${filteredMap.size}). This may be due to zero-weight phrases."
+                "Phrase weight count ($nonZeroCount) does not match filtered map size " +
+                    "(${filteredMap.size}). This may be due to zero-weight phrases."
             }
         }
         return allPhraseWeights to filteredMap

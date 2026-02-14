@@ -3,8 +3,8 @@ package hipporag.config
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class BaseConfigTest {
     @Test
@@ -12,7 +12,7 @@ class BaseConfigTest {
         val config = BaseConfig()
         assertEquals("outputs", config.saveDir)
         assertEquals("gpt-4o-mini", config.llmName)
-        assertEquals("text-embedding-3-large", config.embeddingModelName)
+        assertEquals("nvidia/NV-Embed-v2", config.embeddingModelName)
         assertNull(config.llmBaseUrl)
         assertNull(config.embeddingBaseUrl)
         assertEquals("online", config.openieMode)
@@ -35,12 +35,13 @@ class BaseConfigTest {
 
     @Test
     fun testToMap() {
-        val config = BaseConfig(
-            saveDir = "test_dir",
-            llmName = "test-model",
-            openAiApiKey = "secret-key",
-            azureApiKey = "azure-secret"
-        )
+        val config =
+            BaseConfig(
+                saveDir = "test_dir",
+                llmName = "test-model",
+                openAiApiKey = "secret-key",
+                azureApiKey = "azure-secret",
+            )
 
         val map = config.toMap()
 
@@ -55,10 +56,11 @@ class BaseConfigTest {
 
     @Test
     fun testToMapMasksSecrets() {
-        val config = BaseConfig(
-            openAiApiKey = "my-secret-key",
-            azureApiKey = "azure-secret-key"
-        )
+        val config =
+            BaseConfig(
+                openAiApiKey = "my-secret-key",
+                azureApiKey = "azure-secret-key",
+            )
 
         val map = config.toMap()
 

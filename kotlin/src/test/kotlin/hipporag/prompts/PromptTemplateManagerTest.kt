@@ -3,16 +3,17 @@ package hipporag.prompts
 import hipporag.utils.Message
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PromptTemplateManagerTest {
     @Test
     fun testRenderWithPromptUser() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         if ("ner" in templates) {
@@ -24,9 +25,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testRenderWithVariables() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         if ("ner" in templates) {
@@ -37,9 +39,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testListTemplateNames() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         assertTrue(templates.isNotEmpty())
@@ -47,9 +50,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testIsTemplateNameValid() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         if (templates.isNotEmpty()) {
@@ -60,9 +64,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testRenderInvalidTemplateThrows() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         assertFailsWith<IllegalArgumentException> {
             manager.render("nonexistent_template", promptUser = "test")
@@ -71,9 +76,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testRoleMapping() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "sys", "user" to "usr", "assistant" to "asst")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "sys", "user" to "usr", "assistant" to "asst"),
+            )
 
         val templates = manager.listTemplateNames()
         if ("ner" in templates) {
@@ -85,25 +91,28 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testTemplateVariableSubstitution() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         if (templates.isNotEmpty()) {
-            val messages = manager.render(
-                templates.first(),
-                variables = mapOf("prompt_user" to "custom value")
-            )
+            val messages =
+                manager.render(
+                    templates.first(),
+                    variables = mapOf("prompt_user" to "custom value"),
+                )
             assertTrue(messages.any { it.content.contains("custom value") })
         }
     }
 
     @Test
     fun testNerTemplateExists() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         assertTrue(templates.contains("ner"), "NER template should be loaded")
@@ -111,9 +120,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testRagQaMusiqueTemplateExists() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         assertTrue(templates.contains("rag_qa_musique"), "RAG QA Musique template should be loaded")
@@ -121,9 +131,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testTripleExtractionTemplateExists() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val templates = manager.listTemplateNames()
         assertTrue(templates.contains("triple_extraction"), "Triple extraction template should be loaded")
@@ -131,9 +142,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testNerTemplateStructure() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val messages = manager.render("ner", promptUser = "Test passage")
         assertTrue(messages.size >= 2, "NER template should have at least system and user messages")
@@ -143,9 +155,10 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testRagQaMusiqueTemplateStructure() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val messages = manager.render("rag_qa_musique", promptUser = "Question: Test?")
         assertTrue(messages.isNotEmpty())
@@ -154,23 +167,26 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testTripleExtractionTemplateStructure() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
-        val messages = manager.render(
-            "triple_extraction",
-            variables = mapOf("passage" to "Test", "named_entity_json" to "{}")
-        )
+        val messages =
+            manager.render(
+                "triple_extraction",
+                variables = mapOf("passage" to "Test", "named_entity_json" to "{}"),
+            )
         assertTrue(messages.isNotEmpty())
         assertTrue(messages.any { it.role == "system" })
     }
 
     @Test
     fun testTemplateWithMissingVariable() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
+            )
 
         val messages = manager.render("ner", variables = emptyMap())
         assertTrue(messages.isNotEmpty())
@@ -179,17 +195,20 @@ class PromptTemplateManagerTest {
 
     @Test
     fun testMultipleVariableSubstitution() {
-        val manager = PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant")
-        )
-
-        val messages = manager.render(
-            "triple_extraction",
-            variables = mapOf(
-                "passage" to "Custom passage",
-                "named_entity_json" to """{"entities": ["A", "B"]}"""
+        val manager =
+            PromptTemplateManager(
+                roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
             )
-        )
+
+        val messages =
+            manager.render(
+                "triple_extraction",
+                variables =
+                    mapOf(
+                        "passage" to "Custom passage",
+                        "named_entity_json" to """{"entities": ["A", "B"]}""",
+                    ),
+            )
         assertTrue(messages.any { it.content.contains("Custom passage") })
         assertTrue(messages.any { it.content.contains("entities") })
     }

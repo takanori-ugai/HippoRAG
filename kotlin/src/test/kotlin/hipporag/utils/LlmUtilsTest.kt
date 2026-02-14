@@ -2,18 +2,19 @@ package hipporag.utils
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class LlmUtilsTest {
     @Test
     fun testFilterInvalidTriplesRemovesDuplicates() {
-        val triples = listOf(
-            listOf("A", "relates", "B"),
-            listOf("A", "relates", "B"),
-            listOf("C", "knows", "D")
-        )
+        val triples =
+            listOf(
+                listOf("A", "relates", "B"),
+                listOf("A", "relates", "B"),
+                listOf("C", "knows", "D"),
+            )
         val filtered = filterInvalidTriples(triples)
 
         assertEquals(2, filtered.size)
@@ -23,13 +24,14 @@ class LlmUtilsTest {
 
     @Test
     fun testFilterInvalidTriplesRemovesIncomplete() {
-        val triples = listOf(
-            listOf("A", "relates", "B"),
-            listOf("A", "relates"),
-            listOf("A"),
-            listOf(),
-            listOf("C", "knows", "D")
-        )
+        val triples =
+            listOf(
+                listOf("A", "relates", "B"),
+                listOf("A", "relates"),
+                listOf("A"),
+                listOf(),
+                listOf("C", "knows", "D"),
+            )
         val filtered = filterInvalidTriples(triples)
 
         assertEquals(2, filtered.size)
@@ -98,7 +100,7 @@ class LlmUtilsTest {
     fun testFixBrokenGeneratedJsonUnclosedBrace() {
         val brokenJson = """{"key": "value", "array": [1, 2, 3]"""
         val result = fixBrokenGeneratedJson(brokenJson)
-        assertTrue(result.endsWith("]"))
+        assertTrue(result.endsWith("]}"))
         assertTrue(result.contains("\"key\": \"value\""))
     }
 
@@ -129,10 +131,11 @@ class LlmUtilsTest {
     @Test
     fun testRetryWithBackoffSuccess() {
         var attempts = 0
-        val result = retryWithBackoff(maxAttempts = 3) {
-            attempts++
-            "success"
-        }
+        val result =
+            retryWithBackoff(maxAttempts = 3) {
+                attempts++
+                "success"
+            }
         assertEquals("success", result)
         assertEquals(1, attempts)
     }
@@ -140,11 +143,12 @@ class LlmUtilsTest {
     @Test
     fun testRetryWithBackoffRetriesOnException() {
         var attempts = 0
-        val result = retryWithBackoff(maxAttempts = 3, baseDelayMillis = 1) {
-            attempts++
-            if (attempts < 3) throw RuntimeException("Temporary failure")
-            "success"
-        }
+        val result =
+            retryWithBackoff(maxAttempts = 3, baseDelayMillis = 1) {
+                attempts++
+                if (attempts < 3) error("Temporary failure")
+                "success"
+            }
         assertEquals("success", result)
         assertEquals(3, attempts)
     }
@@ -152,10 +156,10 @@ class LlmUtilsTest {
     @Test
     fun testRetryWithBackoffThrowsAfterMaxAttempts() {
         var attempts = 0
-        assertFailsWith<RuntimeException> {
+        assertFailsWith<IllegalStateException> {
             retryWithBackoff(maxAttempts = 3, baseDelayMillis = 1) {
                 attempts++
-                throw RuntimeException("Persistent failure")
+                error("Persistent failure")
             }
         }
         assertEquals(3, attempts)
@@ -164,15 +168,16 @@ class LlmUtilsTest {
     @Test
     fun testRetryWithBackoffCustomRetryCondition() {
         var attempts = 0
-        val result = retryWithBackoff(
-            maxAttempts = 3,
-            baseDelayMillis = 1,
-            retryOn = { it is IllegalStateException }
-        ) {
-            attempts++
-            if (attempts < 2) throw IllegalStateException("Retry")
-            "success"
-        }
+        val result =
+            retryWithBackoff(
+                maxAttempts = 3,
+                baseDelayMillis = 1,
+                retryOn = { it is IllegalStateException },
+            ) {
+                attempts++
+                if (attempts < 2) error("Retry")
+                "success"
+            }
         assertEquals("success", result)
         assertEquals(2, attempts)
     }
@@ -183,7 +188,7 @@ class LlmUtilsTest {
         assertFailsWith<IllegalArgumentException> {
             retryWithBackoff(
                 maxAttempts = 3,
-                retryOn = { it is IllegalStateException }
+                retryOn = { it is IllegalStateException },
             ) {
                 attempts++
                 throw IllegalArgumentException("Wrong exception")

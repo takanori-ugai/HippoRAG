@@ -62,7 +62,10 @@ class LangChainEmbeddingFactory : EmbeddingModelFactory {
             }
 
             provider == "ollama" -> {
-                val baseUrl = globalConfig.ollamaBaseUrl ?: globalConfig.embeddingBaseUrl ?: "http://localhost:11434"
+                val baseUrl =
+                    globalConfig.ollamaBaseUrl
+                        ?: globalConfig.embeddingBaseUrl
+                        ?: "http://localhost:11434"
                 val model = globalConfig.ollamaEmbeddingModelName ?: embeddingModelName
                 OllamaEmbeddingModel
                     .builder()
@@ -73,9 +76,13 @@ class LangChainEmbeddingFactory : EmbeddingModelFactory {
 
             isLikelyOllamaBaseUrl(globalConfig.embeddingBaseUrl) -> {
                 logger.warn {
-                    "Ambiguous embedding provider. 'ollama' detected in embeddingBaseUrl, but embeddingProvider is not explicitly 'ollama'. Defaulting to Ollama."
+                    "Ambiguous embedding provider. 'ollama' detected in embeddingBaseUrl, " +
+                        "but embeddingProvider is not explicitly 'ollama'. Defaulting to Ollama."
                 }
-                val baseUrl = globalConfig.ollamaBaseUrl ?: globalConfig.embeddingBaseUrl ?: "http://localhost:11434"
+                val baseUrl =
+                    globalConfig.ollamaBaseUrl
+                        ?: globalConfig.embeddingBaseUrl
+                        ?: "http://localhost:11434"
                 val model = globalConfig.ollamaEmbeddingModelName ?: embeddingModelName
                 OllamaEmbeddingModel
                     .builder()
