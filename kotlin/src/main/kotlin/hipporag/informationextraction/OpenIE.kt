@@ -194,10 +194,7 @@ private fun twoPhaseOpenie(
     return nerResults to tripleResults
 }
 
-/**
- * Offline OpenIE extractor that performs two-phase extraction with a local model.
- */
-class VllmOfflineOpenIE(
+open class OfflineOpenIEBase(
     private val llmModel: BaseLLM,
 ) : OpenIEBase {
     private val logger = KotlinLogging.logger {}
@@ -213,26 +210,20 @@ class VllmOfflineOpenIE(
     override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> =
         twoPhaseOpenie(llmModel, logger, promptTemplateManager, json, rows)
 }
+
+/**
+ * Offline OpenIE extractor that performs two-phase extraction with a local model.
+ */
+class VllmOfflineOpenIE(
+    llmModel: BaseLLM,
+) : OfflineOpenIEBase(llmModel)
 
 /**
  * Offline OpenIE extractor that targets transformer-based local models.
  */
 class TransformersOfflineOpenIE(
-    private val llmModel: BaseLLM,
-) : OpenIEBase {
-    private val logger = KotlinLogging.logger {}
-    private val promptTemplateManager =
-        PromptTemplateManager(
-            roleMapping = mapOf("system" to "system", "user" to "user", "assistant" to "assistant"),
-        )
-    private val json = jsonWithDefaults { ignoreUnknownKeys = true }
-
-    /**
-     * Runs two-phase OpenIE extraction for each provided row.
-     */
-    override fun batchOpenie(rows: Map<String, EmbeddingRow>): Pair<Map<String, NerRawOutput>, Map<String, TripleRawOutput>> =
-        twoPhaseOpenie(llmModel, logger, promptTemplateManager, json, rows)
-}
+    llmModel: BaseLLM,
+) : OfflineOpenIEBase(llmModel)
 
 private fun buildNamedEntityJson(
     namedEntities: List<String>,

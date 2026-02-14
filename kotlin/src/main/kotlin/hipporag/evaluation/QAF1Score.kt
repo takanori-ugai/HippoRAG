@@ -8,6 +8,12 @@ import hipporag.utils.normalizeAnswer
 class QAF1Score {
     /**
      * Calculates F1 metrics for the provided answers.
+     *
+     * @param goldAnswers List of gold answer sets, one per question (each question may have multiple valid answers)
+     * @param predictedAnswers List of predicted answers, one per question
+     * @param aggregationFn Function to aggregate multiple F1 scores when multiple gold answers exist
+     * @return Pair of (1) pooled metrics across all examples and (2) per-example metric maps
+     * @throws IllegalArgumentException if goldAnswers and predictedAnswers have different sizes
      */
     fun calculateMetricScores(
         goldAnswers: List<List<String>>,
@@ -27,6 +33,8 @@ class QAF1Score {
 
             val goldCounts = goldTokens.groupingBy { it }.eachCount()
             val predictedCounts = predictedTokens.groupingBy { it }.eachCount()
+
+            if (predictedTokens.isEmpty() || goldTokens.isEmpty()) return 0.0
 
             var numSame = 0
             for ((token, count) in predictedCounts) {

@@ -18,7 +18,7 @@ class StandardRag(
     azureEndpoint: String? = null,
     azureEmbeddingEndpoint: String? = null,
 ) {
-    private val config: BaseConfig = globalConfig ?: BaseConfig()
+    private val config: BaseConfig = (globalConfig ?: BaseConfig()).copy()
     private val hippoRag: HippoRag
 
     init {

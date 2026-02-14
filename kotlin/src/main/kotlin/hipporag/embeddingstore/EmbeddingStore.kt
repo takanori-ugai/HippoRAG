@@ -133,6 +133,10 @@ class EmbeddingStore(
      * Deletes embeddings by [hashIds] and persists the updated store.
      */
     fun delete(hashIds: Collection<String>) {
+        val missingIds = hashIds.filter { it !in hashIdToIdx }
+        if (missingIds.isNotEmpty()) {
+            logger.warn { "Ignoring ${missingIds.size} unknown hash IDs during delete." }
+        }
         val indices = hashIds.mapNotNull { hashIdToIdx[it] }.distinct().sortedDescending()
         for (idx in indices) {
             this.hashIds.removeAt(idx)

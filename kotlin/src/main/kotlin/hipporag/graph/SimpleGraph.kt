@@ -31,6 +31,9 @@ class SimpleGraph(
     fun addVertices(attributes: Map<String, List<Any>>) {
         if (attributes.isEmpty()) return
         val count = attributes.values.first().size
+        require(attributes.values.all { it.size == count }) {
+            "All attribute lists must have the same length ($count)"
+        }
         for (i in 0 until count) {
             val attr = mutableMapOf<String, Any>()
             for ((key, values) in attributes) {

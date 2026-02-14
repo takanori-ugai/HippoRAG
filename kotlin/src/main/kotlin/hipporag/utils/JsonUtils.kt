@@ -15,9 +15,15 @@ val hippoSerializersModule: SerializersModule =
 
 /**
  * Builds a [Json] instance with default HippoRAG serializers.
+ *
+ * Custom serializers provided in [configure] are merged with HippoRAG defaults.
  */
 fun jsonWithDefaults(configure: JsonBuilder.() -> Unit = {}): Json =
     Json {
         configure()
-        serializersModule = hippoSerializersModule
+        serializersModule =
+            SerializersModule {
+                include(hippoSerializersModule)
+                include(serializersModule)
+            }
     }

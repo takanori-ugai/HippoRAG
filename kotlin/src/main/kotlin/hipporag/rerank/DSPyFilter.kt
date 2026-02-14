@@ -47,6 +47,13 @@ class DSPyFilter(
 
     /**
      * Reranks [candidateFacts] for [query], returning filtered indices and facts.
+     *
+     * @param query The search query to match against.
+     * @param candidateFacts List of candidate fact triples to filter.
+     * @param candidateFactIndices Original indices of the candidate facts.
+     * @param lenAfterRerank Maximum number of results to return after reranking.
+     * @return Triple of (filtered indices, filtered facts, metadata map with model response or error).
+     *         Falls back to original order if LLM inference fails.
      */
     fun rerank(
         query: String,
@@ -89,14 +96,14 @@ class DSPyFilter(
             Triple(
                 sortedIndices.take(lenAfterRerank),
                 sortedFacts.take(lenAfterRerank),
-                mapOf("model_response" to result.response, "confidence" to null),
+                mapOf("model_response" to result.response),
             )
         }.getOrElse { e ->
             logger.warn(e) { "DSPy rerank failed, falling back to original order." }
             Triple(
                 candidateFactIndices.take(lenAfterRerank),
                 candidateFacts.take(lenAfterRerank),
-                mapOf("error" to e.message.orEmpty(), "confidence" to null),
+                mapOf("error" to e.message.orEmpty()),
             )
         }
     }

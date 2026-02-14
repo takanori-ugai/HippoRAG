@@ -382,33 +382,19 @@ class HippoRag(
         queries: List<String>,
         numToRetrieve: Int? = null,
         goldDocs: List<List<String>>? = null,
-    ): Pair<List<QuerySolution>, Map<String, Double>?> {
-        val retrieveStart = nowSeconds()
+    ): Pair<List<QuerySolution>, Map<String, Double>?> =
+        retrieveInternal(
+            queries = queries,
+            numToRetrieve = numToRetrieve,
+            goldDocs = goldDocs,
+            perQueryRetrieval = { query ->
+                val rerankStart = nowSeconds()
+                val queryFactScores = getFactScores(query)
+                val (topKFactIndices, topKFacts, _) = rerankFacts(query, queryFactScores)
+                val rerankEnd = nowSeconds()
 
-        pprTimeSeconds = 0.0
-        rerankTimeSeconds = 0.0
-        allRetrievalTimeSeconds = 0.0
+                rerankTimeSeconds += rerankEnd - rerankStart
 
-        val k = numToRetrieve ?: globalConfig.retrievalTopK
-        val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
-
-        if (!readyToRetrieve) {
-            prepareRetrievalObjects()
-        }
-
-        getQueryEmbeddings(queries)
-
-        val retrievalResults = mutableListOf<QuerySolution>()
-
-        for (query in queries) {
-            val rerankStart = nowSeconds()
-            val queryFactScores = getFactScores(query)
-            val (topKFactIndices, topKFacts, _) = rerankFacts(query, queryFactScores)
-            val rerankEnd = nowSeconds()
-
-            rerankTimeSeconds += rerankEnd - rerankStart
-
-            val (sortedDocIds, sortedDocScores) =
                 if (topKFacts.isEmpty()) {
                     logger.info { "No facts found after reranking, return DPR results" }
                     densePassageRetrieval(query)
@@ -422,45 +408,16 @@ class HippoRag(
                         passageNodeWeight = globalConfig.passageNodeWeight,
                     )
                 }
-
-            val topKDocs =
-                sortedDocIds.take(k).map { idx ->
-                    chunkEmbeddingStore.getRow(passageNodeKeys[idx]).content
+            },
+            logTimings = {
+                logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
+                logger.info { "Total Recognition Memory Time ${String.format(Locale.US, "%.2f", rerankTimeSeconds)}s" }
+                logger.info { "Total PPR Time ${String.format(Locale.US, "%.2f", pprTimeSeconds)}s" }
+                logger.info {
+                    "Total Misc Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds - (rerankTimeSeconds + pprTimeSeconds))}s"
                 }
-
-            retrievalResults.add(
-                QuerySolution(
-                    question = query,
-                    docs = topKDocs,
-                    docScores = sortedDocScores.take(k).toDoubleArray(),
-                ),
-            )
-        }
-
-        val retrieveEnd = nowSeconds()
-        allRetrievalTimeSeconds += retrieveEnd - retrieveStart
-
-        logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
-        logger.info { "Total Recognition Memory Time ${String.format(Locale.US, "%.2f", rerankTimeSeconds)}s" }
-        logger.info { "Total PPR Time ${String.format(Locale.US, "%.2f", pprTimeSeconds)}s" }
-        logger.info {
-            "Total Misc Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds - (rerankTimeSeconds + pprTimeSeconds))}s"
-        }
-
-        if (goldDocs != null && retrievalRecallEvaluator != null) {
-            val kList = listOf(1, 2, 5, 10, 20, 30, 50, 100, 150, 200)
-            val (overall, _) =
-                retrievalRecallEvaluator.calculateMetricScores(
-                    goldDocs = goldDocs,
-                    retrievedDocs = retrievalResults.map { it.docs },
-                    kList = kList,
-                )
-            logger.info { "Evaluation results for retrieval: $overall" }
-            return retrievalResults to overall
-        }
-
-        return retrievalResults to null
-    }
+            },
+        )
 
     /**
      * Runs retrieval + LLM QA for [queries].
@@ -565,61 +522,19 @@ class HippoRag(
         queries: List<String>,
         numToRetrieve: Int? = null,
         goldDocs: List<List<String>>? = null,
-    ): Pair<List<QuerySolution>, Map<String, Double>?> {
-        val retrieveStart = nowSeconds()
-
-        pprTimeSeconds = 0.0
-        rerankTimeSeconds = 0.0
-        allRetrievalTimeSeconds = 0.0
-
-        val k = numToRetrieve ?: globalConfig.retrievalTopK
-        val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
-
-        if (!readyToRetrieve) {
-            prepareRetrievalObjects()
-        }
-
-        getQueryEmbeddings(queries)
-
-        val retrievalResults = mutableListOf<QuerySolution>()
-
-        for (query in queries) {
-            logger.info { "Performing DPR retrieval for query." }
-            val (sortedDocIds, sortedDocScores) = densePassageRetrieval(query)
-
-            val topKDocs =
-                sortedDocIds.take(k).map { idx ->
-                    chunkEmbeddingStore.getRow(passageNodeKeys[idx]).content
-                }
-
-            retrievalResults.add(
-                QuerySolution(
-                    question = query,
-                    docs = topKDocs,
-                    docScores = sortedDocScores.take(k).toDoubleArray(),
-                ),
-            )
-        }
-
-        val retrieveEnd = nowSeconds()
-        allRetrievalTimeSeconds += retrieveEnd - retrieveStart
-
-        logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
-
-        if (goldDocs != null && retrievalRecallEvaluator != null) {
-            val kList = listOf(1, 2, 5, 10, 20, 30, 50, 100, 150, 200)
-            val (overall, _) =
-                retrievalRecallEvaluator.calculateMetricScores(
-                    goldDocs = goldDocs,
-                    retrievedDocs = retrievalResults.map { it.docs },
-                    kList = kList,
-                )
-            logger.info { "Evaluation results for retrieval: $overall" }
-            return retrievalResults to overall
-        }
-
-        return retrievalResults to null
-    }
+    ): Pair<List<QuerySolution>, Map<String, Double>?> =
+        retrieveInternal(
+            queries = queries,
+            numToRetrieve = numToRetrieve,
+            goldDocs = goldDocs,
+            perQueryRetrieval = { query ->
+                logger.info { "Performing DPR retrieval for query." }
+                densePassageRetrieval(query)
+            },
+            logTimings = {
+                logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
+            },
+        )
 
     /**
      * Runs DPR-only retrieval + LLM QA for [queries].
@@ -659,6 +574,8 @@ class HippoRag(
 
     /**
      * Executes QA prompts over retrieved passages.
+     *
+     * Note: Mutates [queries] by setting the `answer` field on each [QuerySolution].
      *
      * @return updated solutions, response messages, and per-response metadata.
      */
@@ -852,7 +769,7 @@ class HippoRag(
         chunksToSave: Map<String, EmbeddingRow>,
         nerResultsDict: Map<String, NerRawOutput>,
         tripleResultsDict: Map<String, TripleRawOutput>,
-    ): List<OpenieDoc> {
+    ) {
         for ((chunkKey, row) in chunksToSave) {
             val passage = row.content
             val nerOutput = nerResultsDict[chunkKey]
@@ -869,8 +786,67 @@ class HippoRag(
                 )
             allOpenieInfo.add(chunkOpenieInfo)
         }
+    }
 
-        return allOpenieInfo
+    private fun retrieveInternal(
+        queries: List<String>,
+        numToRetrieve: Int?,
+        goldDocs: List<List<String>>?,
+        perQueryRetrieval: (String) -> Pair<List<Int>, DoubleArray>,
+        logTimings: () -> Unit,
+    ): Pair<List<QuerySolution>, Map<String, Double>?> {
+        val retrieveStart = nowSeconds()
+
+        pprTimeSeconds = 0.0
+        rerankTimeSeconds = 0.0
+        allRetrievalTimeSeconds = 0.0
+
+        val k = numToRetrieve ?: globalConfig.retrievalTopK
+        val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
+
+        if (!readyToRetrieve) {
+            prepareRetrievalObjects()
+        }
+
+        getQueryEmbeddings(queries)
+
+        val retrievalResults = mutableListOf<QuerySolution>()
+
+        for (query in queries) {
+            val (sortedDocIds, sortedDocScores) = perQueryRetrieval(query)
+
+            val topKDocs =
+                sortedDocIds.take(k).map { idx ->
+                    chunkEmbeddingStore.getRow(passageNodeKeys[idx]).content
+                }
+
+            retrievalResults.add(
+                QuerySolution(
+                    question = query,
+                    docs = topKDocs,
+                    docScores = sortedDocScores.take(k).toDoubleArray(),
+                ),
+            )
+        }
+
+        val retrieveEnd = nowSeconds()
+        allRetrievalTimeSeconds += retrieveEnd - retrieveStart
+
+        logTimings()
+
+        if (goldDocs != null && retrievalRecallEvaluator != null) {
+            val kList = listOf(1, 2, 5, 10, 20, 30, 50, 100, 150, 200)
+            val (overall, _) =
+                retrievalRecallEvaluator.calculateMetricScores(
+                    goldDocs = goldDocs,
+                    retrievedDocs = retrievalResults.map { it.docs },
+                    kList = kList,
+                )
+            logger.info { "Evaluation results for retrieval: $overall" }
+            return retrievalResults to overall
+        }
+
+        return retrievalResults to null
     }
 
     private fun saveOpenieResults(allOpenieInfo: List<OpenieDoc>) {

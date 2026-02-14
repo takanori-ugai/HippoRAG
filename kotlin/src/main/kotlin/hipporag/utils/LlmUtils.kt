@@ -1,5 +1,7 @@
 package hipporag.utils
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -175,6 +177,39 @@ fun <T> retryWithBackoff(
         attempt += 1
     }
     error("retryWithBackoff: unreachable")
+}
+
+/**
+ * Executes [block] with exponential backoff and jitter without blocking the thread.
+ */
+@Suppress("TooGenericExceptionCaught")
+suspend fun <T> retryWithBackoffSuspend(
+    maxAttempts: Int,
+    baseDelayMillis: Long = 250,
+    maxDelayMillis: Long = 4000,
+    jitterMillis: Long = 100,
+    retryOn: (Throwable) -> Boolean = { it is Exception },
+    block: suspend () -> T,
+): T {
+    require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
+    var attempt = 0
+    while (attempt < maxAttempts) {
+        try {
+            return block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (!retryOn(e) || attempt == maxAttempts - 1) {
+                throw e
+            }
+            val exponent = 1 shl attempt.coerceAtMost(10)
+            val delayMillis = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
+            val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
+            delay(delayMillis + jitter)
+        }
+        attempt += 1
+    }
+    error("retryWithBackoffSuspend: unreachable")
 }
 
 /**
