@@ -31,7 +31,8 @@ fun main(args: Array<String>) {
 
     val hipporag = HippoRag(globalConfig = config)
     hipporag.index(docs)
-    hipporag.ragQa(queries = queries, goldDocs = null, goldAnswers = null)
+    val result = hipporag.ragQa(queries = queries, goldDocs = null, goldAnswers = null)
+    printAnswers(result)
 }
 
 private fun readStringListJson(
@@ -58,6 +59,15 @@ private fun resolveSafeFile(
         "Missing or invalid $label file: ${file.path}"
     }
     return file
+}
+
+private fun printAnswers(result: hipporag.utils.RagQaResult) {
+    println("=== Answers ===")
+    result.solutions.forEachIndexed { idx, solution ->
+        val answer = solution.answer ?: "(no answer)"
+        println("${idx + 1}. Q: ${solution.question}")
+        println("   A: $answer")
+    }
 }
 
 private data class Args(

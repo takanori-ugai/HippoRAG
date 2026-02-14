@@ -1,0 +1,7 @@
+[
+  "The HippoRAG demo ingests a list of documents from docs.json.",
+  "Each entry in docs.json is a plain text document string.",
+  "You can add more documents to improve retrieval coverage.",
+  "Short documents are fine for testing; longer passages work too.",
+  "This is a sample document about retrieval-augmented generation."
+]

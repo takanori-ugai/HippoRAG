@@ -224,7 +224,7 @@ class HippoRag(
         logger.info { "Indexing Documents" }
         logger.info { "Performing OpenIE" }
 
-        if (globalConfig.openieMode == "offline") {
+        if (globalConfig.openieMode.lowercase() == "offline") {
             logger.info { "Offline OpenIE mode: run preOpenie() separately before calling index()." }
             return
         }

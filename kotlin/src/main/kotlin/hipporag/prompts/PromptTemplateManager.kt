@@ -3,6 +3,7 @@
 package hipporag.prompts
 
 import hipporag.utils.Message
+import hipporag.utils.jsonWithDefaults
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
@@ -97,7 +98,7 @@ object PromptTemplates {
     }
 
     private val json =
-        Json {
+        jsonWithDefaults {
             isLenient = true
             ignoreUnknownKeys = true
         }

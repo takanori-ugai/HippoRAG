@@ -34,7 +34,7 @@ data class DemoArgs(
                 queriesPath = queries,
                 saveDir = map["save_dir"] ?: "outputs",
                 llmName = map["llm_name"] ?: "gpt-4o-mini",
-                embeddingName = map["embedding_name"] ?: "nvidia/NV-Embed-v2",
+                embeddingName = map["embedding_name"] ?: "text-embedding-3-large",
                 llmBaseUrl = map["llm_base_url"],
                 embeddingBaseUrl = map["embedding_base_url"],
                 azureEndpoint = map["azure_endpoint"],
