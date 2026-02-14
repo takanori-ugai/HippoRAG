@@ -39,12 +39,17 @@ class EmbeddingStore(
         loadData()
     }
 
-    fun getMissingStringHashIds(texts: List<String>): Map<String, EmbeddingRow> {
+    private fun buildNodesDict(texts: List<String>): Map<String, EmbeddingRow> {
         val nodesDict = mutableMapOf<String, EmbeddingRow>()
         for (text in texts) {
             val hashId = computeMdHashId(text, prefix = "$namespace-")
             nodesDict[hashId] = EmbeddingRow(hashId = hashId, content = text)
         }
+        return nodesDict
+    }
+
+    fun getMissingStringHashIds(texts: List<String>): Map<String, EmbeddingRow> {
+        val nodesDict = buildNodesDict(texts)
 
         if (nodesDict.isEmpty()) return emptyMap()
 
@@ -53,11 +58,7 @@ class EmbeddingStore(
     }
 
     fun insertStrings(texts: List<String>) {
-        val nodesDict = mutableMapOf<String, EmbeddingRow>()
-        for (text in texts) {
-            val hashId = computeMdHashId(text, prefix = "$namespace-")
-            nodesDict[hashId] = EmbeddingRow(hashId = hashId, content = text)
-        }
+        val nodesDict = buildNodesDict(texts)
 
         if (nodesDict.isEmpty()) return
 
@@ -140,7 +141,14 @@ class EmbeddingStore(
         }
 
         val json = jsonWithDefaults { ignoreUnknownKeys = true }
-        val data = json.decodeFromString(EmbeddingStoreData.serializer(), file.readText())
+        val data =
+            runCatching {
+                json.decodeFromString(EmbeddingStoreData.serializer(), file.readText())
+            }.getOrElse { e ->
+                logger.error(e) { "Failed to load embedding store from $filename; starting fresh." }
+                rebuildIndexes()
+                return
+            }
 
         hashIds.clear()
         texts.clear()
