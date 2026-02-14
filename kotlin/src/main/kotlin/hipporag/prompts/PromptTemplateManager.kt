@@ -8,9 +8,11 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonClassDiscriminator
 import java.io.File
+import java.io.IOException
 import java.net.JarURLConnection
 import java.net.URL
 import kotlin.OptIn
@@ -131,7 +133,10 @@ object PromptTemplates {
                             }
                     val templateName = fileName.substringBeforeLast(".json")
                     templateName to json.decodeFromString<PromptTemplate>(content)
-                } catch (e: Exception) {
+                } catch (e: IOException) {
+                    logger.error(e) { "Error loading template: $fileName" }
+                    null
+                } catch (e: SerializationException) {
                     logger.error(e) { "Error loading template: $fileName" }
                     null
                 }
