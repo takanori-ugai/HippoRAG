@@ -10,7 +10,7 @@ import hipporag.utils.RagQaResult
  * This variant skips graph-based retrieval and relies on dense passage retrieval.
  */
 class StandardRag(
-    globalConfig: BaseConfig? = null,
+    initialConfig: BaseConfig? = null,
     saveDir: String? = null,
     llmModelName: String? = null,
     embeddingModelName: String? = null,
@@ -19,7 +19,7 @@ class StandardRag(
     azureEndpoint: String? = null,
     azureEmbeddingEndpoint: String? = null,
 ) {
-    private val config: BaseConfig = (globalConfig ?: BaseConfig()).copy()
+    private val config: BaseConfig = (initialConfig ?: BaseConfig()).copy()
     private val hippoRag: HippoRag
 
     init {

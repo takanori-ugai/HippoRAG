@@ -1,7 +1,7 @@
 [
-  "The HippoRAG demo ingests a list of documents from docs.json.",
-  "Each entry in docs.json is a plain text document string.",
-  "You can add more documents to improve retrieval coverage.",
-  "Short documents are fine for testing; longer passages work too.",
-  "This is a sample document about retrieval-augmented generation."
+  "HippoRAG was showcased at the NeurIPS 2024 demo track in Vancouver. The demo used a corpus of 500 Wikipedia passages.",
+  "The OpenAI model gpt-4o-mini powered entity extraction, while the embedding model text-embedding-3-large generated vector representations.",
+  "A pilot study at Stanford University compared HippoRAG and DPR on the HotpotQA dataset, reporting higher recall for HippoRAG.",
+  "In 2023, Meta released the Llama 2 model family under a permissive license; Llama 2 13B was used for a local baseline.",
+  "The retrieval pipeline stored chunk embeddings in DuckDB and wrote OpenIE outputs to outputs/openie_results_ner_gpt-4o-mini.json."
 ]

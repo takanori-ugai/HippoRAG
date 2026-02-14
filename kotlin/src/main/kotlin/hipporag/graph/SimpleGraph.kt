@@ -1,6 +1,7 @@
 package hipporag.graph
 
 import hipporag.utils.jsonWithDefaults
+import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import java.io.File
 
@@ -136,10 +137,16 @@ class SimpleGraph(
         val tol = 1e-6
 
         repeat(maxIter) {
-            val next = DoubleArray(n) { (1.0 - damping) * resetProb[it] }
+            var danglingMass = 0.0
+            for (i in 0 until n) {
+                if (outWeight[i] == 0.0) danglingMass += scores[i]
+            }
+            val next =
+                DoubleArray(n) {
+                    (1.0 - damping) * resetProb[it] + damping * danglingMass * resetProb[it]
+                }
             for (i in 0 until n) {
                 val weightSum = outWeight[i]
-                // Note: dangling nodes (weightSum == 0) contribute no mass here.
                 if (weightSum == 0.0) continue
                 val contribution = damping * scores[i] / weightSum
                 for ((j, w) in adjacency[i]) {
@@ -162,7 +169,7 @@ class SimpleGraph(
         val data =
             GraphData(
                 directed = directed,
-                vertices = vertices.map { it.mapValues { v -> v.value.toString() } },
+                vertices = vertices.map { it.toMap() },
                 edges = edges.map { EdgeData(it.source, it.target, it.weight) },
             )
         val json = jsonWithDefaults { prettyPrint = false }
@@ -179,14 +186,14 @@ class SimpleGraph(
             val graph = SimpleGraph(data.directed)
             val attributes = mutableMapOf<String, MutableList<Any>>()
             if (data.vertices.isNotEmpty()) {
-                // Assumes a uniform attribute schema across all vertices.
-                val keys = data.vertices.first().keys
+                val keys = data.vertices.flatMap { it.keys }.toSet()
                 for (k in keys) {
                     attributes[k] = mutableListOf()
                 }
                 for (vertex in data.vertices) {
-                    for ((k, v) in vertex) {
-                        attributes.getValue(k).add(v)
+                    for (k in keys) {
+                        val value = vertex[k] ?: ""
+                        attributes.getValue(k).add(value)
                     }
                 }
                 graph.addVertices(attributes)
@@ -194,8 +201,16 @@ class SimpleGraph(
             if (data.edges.isNotEmpty()) {
                 val edgePairs =
                     data.edges.map { edge ->
-                        val sourceName = graph.vertices[edge.source]["name"]?.toString() ?: ""
-                        val targetName = graph.vertices[edge.target]["name"]?.toString() ?: ""
+                        val sourceName =
+                            graph.vertices
+                                .getOrNull(edge.source)
+                                ?.get("name")
+                                ?.toString() ?: ""
+                        val targetName =
+                            graph.vertices
+                                .getOrNull(edge.target)
+                                ?.get("name")
+                                ?.toString() ?: ""
                         sourceName to targetName
                     }
                 val weights = data.edges.map { it.weight }
@@ -222,7 +237,7 @@ class SimpleGraph(
 @Serializable
 data class GraphData(
     val directed: Boolean,
-    val vertices: List<Map<String, String>>,
+    val vertices: List<Map<String, @Contextual Any>>,
     val edges: List<EdgeData>,
 )
 

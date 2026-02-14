@@ -8,6 +8,7 @@ import hipporag.utils.TripleRawOutput
 import hipporag.utils.extractJsonObjectWithKey
 import hipporag.utils.filterInvalidTriples
 import hipporag.utils.jsonWithDefaults
+import io.github.oshai.kotlinlogging.KLogger
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -42,30 +43,42 @@ class OpenIE(
         )
     private val json = jsonWithDefaults { ignoreUnknownKeys = true }
 
+    private fun formatMessagesForLog(messages: List<hipporag.utils.Message>): String =
+        messages.joinToString(separator = "\n") { msg ->
+            "[${msg.role}] ${msg.content}"
+        }
+
     private fun ner(
         chunkKey: String,
         passage: String,
     ): NerRawOutput {
         val messages = promptTemplateManager.render("ner", mapOf("passage" to passage))
-        return runCatching {
+        if (logger.isDebugEnabled()) {
+            logger.debug { "OpenIE NER prompt for chunk $chunkKey:\n${formatMessagesForLog(messages)}" }
+        }
+        return safeExtract(
+            logger = logger,
+            chunkKey = chunkKey,
+            operation = "NER",
+            fallback = { e ->
+                NerRawOutput(
+                    chunkId = chunkKey,
+                    response = null,
+                    uniqueEntities = emptyList(),
+                    metadata = mapOf("error" to e.message.orEmpty()),
+                )
+            },
+        ) {
             val result = llmModel.infer(messages)
+            if (logger.isDebugEnabled()) {
+                logger.debug { "OpenIE NER response for chunk $chunkKey:\n${result.response}" }
+            }
             val entities = extractNamedEntitiesFromResponse(result.response, json)
             NerRawOutput(
                 chunkId = chunkKey,
                 response = result.response,
                 uniqueEntities = entities.distinct(),
                 metadata = result.metadata,
-            )
-        }.getOrElse { e ->
-            if (e is Error) {
-                throw e
-            }
-            logger.warn(e) { "NER failed for chunk $chunkKey" }
-            NerRawOutput(
-                chunkId = chunkKey,
-                response = null,
-                uniqueEntities = emptyList(),
-                metadata = mapOf("error" to e.message.orEmpty()),
             )
         }
     }
@@ -81,25 +94,32 @@ class OpenIE(
                 "triple_extraction",
                 mapOf("passage" to passage, "named_entity_json" to namedEntityJson),
             )
-        return runCatching {
+        if (logger.isDebugEnabled()) {
+            logger.debug { "OpenIE triple extraction prompt for chunk $chunkKey:\n${formatMessagesForLog(messages)}" }
+        }
+        return safeExtract(
+            logger = logger,
+            chunkKey = chunkKey,
+            operation = "Triple extraction",
+            fallback = { e ->
+                TripleRawOutput(
+                    chunkId = chunkKey,
+                    response = null,
+                    triples = emptyList(),
+                    metadata = mapOf("error" to e.message.orEmpty()),
+                )
+            },
+        ) {
             val result = llmModel.infer(messages)
+            if (logger.isDebugEnabled()) {
+                logger.debug { "OpenIE triple extraction response for chunk $chunkKey:\n${result.response}" }
+            }
             val triples = extractTriplesFromResponse(result.response, json)
             TripleRawOutput(
                 chunkId = chunkKey,
                 response = result.response,
                 triples = filterInvalidTriples(triples),
                 metadata = result.metadata,
-            )
-        }.getOrElse { e ->
-            if (e is Error) {
-                throw e
-            }
-            logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
-            TripleRawOutput(
-                chunkId = chunkKey,
-                response = null,
-                triples = emptyList(),
-                metadata = mapOf("error" to e.message.orEmpty()),
             )
         }
     }
@@ -136,7 +156,19 @@ private fun twoPhaseOpenie(
     for ((chunkKey, row) in rows) {
         val messages = promptTemplateManager.render("ner", mapOf("passage" to row.content))
         val nerOutput =
-            runCatching {
+            safeExtract(
+                logger = logger,
+                chunkKey = chunkKey,
+                operation = "NER",
+                fallback = { e ->
+                    NerRawOutput(
+                        chunkId = chunkKey,
+                        response = null,
+                        uniqueEntities = emptyList(),
+                        metadata = mapOf("error" to e.message.orEmpty()),
+                    ) to emptyList()
+                },
+            ) {
                 val result = llmModel.infer(messages)
                 val entities = extractNamedEntitiesFromResponse(result.response, json)
                 if (entities.isEmpty()) {
@@ -148,17 +180,6 @@ private fun twoPhaseOpenie(
                     uniqueEntities = entities.distinct(),
                     metadata = result.metadata,
                 ) to entities
-            }.getOrElse { e ->
-                if (e is Error) {
-                    throw e
-                }
-                logger.warn(e) { "NER failed for chunk $chunkKey" }
-                NerRawOutput(
-                    chunkId = chunkKey,
-                    response = null,
-                    uniqueEntities = emptyList(),
-                    metadata = mapOf("error" to e.message.orEmpty()),
-                ) to emptyList()
             }
         nerResults[chunkKey] = nerOutput.first
         namedEntitiesByChunk[chunkKey] = nerOutput.second
@@ -173,7 +194,19 @@ private fun twoPhaseOpenie(
                 mapOf("passage" to row.content, "named_entity_json" to namedEntityJson),
             )
         val tripleOutput =
-            runCatching {
+            safeExtract(
+                logger = logger,
+                chunkKey = chunkKey,
+                operation = "Triple extraction",
+                fallback = { e ->
+                    TripleRawOutput(
+                        chunkId = chunkKey,
+                        response = null,
+                        triples = emptyList(),
+                        metadata = mapOf("error" to e.message.orEmpty()),
+                    )
+                },
+            ) {
                 val result = llmModel.infer(messages)
                 val triples = extractTriplesFromResponse(result.response, json)
                 if (triples.isEmpty()) {
@@ -184,17 +217,6 @@ private fun twoPhaseOpenie(
                     response = result.response,
                     triples = filterInvalidTriples(triples),
                     metadata = result.metadata,
-                )
-            }.getOrElse { e ->
-                if (e is Error) {
-                    throw e
-                }
-                logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
-                TripleRawOutput(
-                    chunkId = chunkKey,
-                    response = null,
-                    triples = emptyList(),
-                    metadata = mapOf("error" to e.message.orEmpty()),
                 )
             }
         tripleResults[chunkKey] = tripleOutput
@@ -249,6 +271,12 @@ private fun extractNamedEntitiesFromResponse(
     response: String,
     json: Json,
 ): List<String> {
+    val directArray =
+        runCatching { json.parseToJsonElement(response).jsonArray }
+            .getOrNull()
+    if (directArray != null) {
+        return directArray.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }.filter { it.isNotEmpty() }
+    }
     val jsonObject = extractJsonObjectWithKey(response, "named_entities", json) ?: return emptyList()
     val entities = jsonObject["named_entities"]?.jsonArray ?: return emptyList()
     return entities.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }.filter { it.isNotEmpty() }
@@ -264,7 +292,7 @@ private fun extractTriplesFromResponse(
     for (tripleEl in triplesArray) {
         val tripleArray = tripleEl.asJsonArrayOrNull() ?: continue
         val triple = tripleArray.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }.filter { it.isNotEmpty() }
-        if (triple.isNotEmpty()) {
+        if (triple.size == 3) {
             triples.add(triple)
         }
     }
@@ -272,3 +300,18 @@ private fun extractTriplesFromResponse(
 }
 
 private fun JsonElement.asJsonArrayOrNull(): JsonArray? = runCatching { this.jsonArray }.getOrNull()
+
+private inline fun <T> safeExtract(
+    logger: KLogger,
+    chunkKey: String,
+    operation: String,
+    fallback: (Exception) -> T,
+    block: () -> T,
+): T =
+    runCatching { block() }.getOrElse { e ->
+        if (e is Error) {
+            throw e
+        }
+        logger.warn(e) { "$operation failed for chunk $chunkKey" }
+        fallback(e as Exception)
+    }

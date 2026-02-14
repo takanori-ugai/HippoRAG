@@ -24,7 +24,6 @@ class DSPyFilter(
 ) {
     private val logger = KotlinLogging.logger {}
     private val json = jsonWithDefaults { ignoreUnknownKeys = true }
-    private val messageTemplate: List<Message> = buildTemplate()
 
     private val oneInputTemplate =
         """
@@ -44,6 +43,8 @@ class DSPyFilter(
 
         [[ ## completed ## ]]
         """.trimIndent()
+
+    private val messageTemplate: List<Message> = buildTemplate()
 
     /**
      * Reranks [candidateFacts] for [query], returning filtered indices and facts.

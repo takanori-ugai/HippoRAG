@@ -50,6 +50,7 @@ class QAF1Score {
 
         val exampleEvalResults = mutableListOf<Map<String, Double>>()
         var totalF1 = 0.0
+        var validCount = 0
 
         for ((goldList, predicted) in goldAnswers.zip(predictedAnswers)) {
             if (goldList.isEmpty()) {
@@ -60,9 +61,10 @@ class QAF1Score {
             val aggregatedF1 = aggregationFn(f1Scores)
             exampleEvalResults.add(mapOf("F1" to aggregatedF1))
             totalF1 += aggregatedF1
+            validCount++
         }
 
-        val avgF1 = if (goldAnswers.isNotEmpty()) totalF1 / goldAnswers.size else 0.0
+        val avgF1 = if (validCount > 0) totalF1 / validCount else 0.0
         val pooledEvalResults = mapOf("F1" to avgF1)
 
         return pooledEvalResults to exampleEvalResults

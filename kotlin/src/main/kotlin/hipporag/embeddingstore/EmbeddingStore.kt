@@ -88,8 +88,11 @@ class EmbeddingStore(
         val textsToEncode = missingIds.map { nodesDict.getValue(it).content }
         val model = embeddingModel ?: error("Embedding model is required for insertStrings")
         val missingEmbeddings = model.batchEncode(textsToEncode)
+        check(missingEmbeddings.size == textsToEncode.size) {
+            "Embedding model returned ${missingEmbeddings.size} embeddings for ${textsToEncode.size} texts"
+        }
 
-        upsert(missingIds, textsToEncode, missingEmbeddings)
+        insertNew(missingIds, textsToEncode, missingEmbeddings)
     }
 
     /** Returns a copy of all stored rows keyed by hash ID. */
@@ -149,14 +152,14 @@ class EmbeddingStore(
         saveData()
     }
 
-    private fun upsert(
+    private fun insertNew(
         hashIds: List<String>,
         texts: List<String>,
         embeddings: Array<DoubleArray>,
     ) {
         val duplicateIds = hashIds.filter { it in hashIdToIdx }
         require(duplicateIds.isEmpty()) {
-            "Embedding store upsert received existing hash IDs: ${duplicateIds.take(5)}" +
+            "Embedding store insertNew received existing hash IDs: ${duplicateIds.take(5)}" +
                 if (duplicateIds.size > 5) " (and ${duplicateIds.size - 5} more)" else ""
         }
         this.hashIds.addAll(hashIds)

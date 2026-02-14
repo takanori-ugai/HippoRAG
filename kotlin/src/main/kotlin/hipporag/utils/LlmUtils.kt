@@ -162,19 +162,16 @@ fun <T> retryWithBackoff(
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
     var attempt = 0
     while (attempt < maxAttempts) {
-        val result = runCatching { block() }
-        if (result.isSuccess) {
-            return result.getOrThrow()
-        }
-        val error = result.exceptionOrNull() ?: error("retryWithBackoff: missing failure")
-        if (error is CancellationException) {
-            throw error
-        }
-        if (error is Error) {
-            throw error
-        }
-        if (!retryOn(error) || attempt == maxAttempts - 1) {
-            throw error
+        try {
+            return block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Error) {
+            throw e
+        } catch (e: Throwable) {
+            if (!retryOn(e) || attempt == maxAttempts - 1) {
+                throw e
+            }
         }
         val exponent = 1 shl attempt.coerceAtMost(10)
         val delay = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
@@ -199,19 +196,16 @@ suspend fun <T> retryWithBackoffSuspend(
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
     var attempt = 0
     while (attempt < maxAttempts) {
-        val result = runCatching { block() }
-        if (result.isSuccess) {
-            return result.getOrThrow()
-        }
-        val error = result.exceptionOrNull() ?: error("retryWithBackoffSuspend: missing failure")
-        if (error is CancellationException) {
-            throw error
-        }
-        if (error is Error) {
-            throw error
-        }
-        if (!retryOn(error) || attempt == maxAttempts - 1) {
-            throw error
+        try {
+            return block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Error) {
+            throw e
+        } catch (e: Throwable) {
+            if (!retryOn(e) || attempt == maxAttempts - 1) {
+                throw e
+            }
         }
         val exponent = 1 shl attempt.coerceAtMost(10)
         val delayMillis = min(maxDelayMillis, baseDelayMillis * exponent.toLong())

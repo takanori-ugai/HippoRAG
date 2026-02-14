@@ -809,6 +809,10 @@ class HippoRag(
         rerankTimeSeconds = 0.0
         allRetrievalTimeSeconds = 0.0
 
+        check(embeddingModel != null) {
+            "Embedding model is required for retrieval. If you used openieMode='offline', set an embedding model or switch to online mode before calling retrieve()."
+        }
+
         val k = numToRetrieve ?: globalConfig.retrievalTopK
         val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
 
@@ -822,17 +826,26 @@ class HippoRag(
 
         for (query in queries) {
             val (sortedDocIds, sortedDocScores) = perQueryRetrieval(query)
+            val docPairs = sortedDocIds.zip(sortedDocScores.toList())
+            val validPairs = docPairs.filter { (idx, _) -> idx in passageNodeKeys.indices }
+            if (validPairs.size < docPairs.size) {
+                logger.error {
+                    "Retrieval returned ${docPairs.size - validPairs.size} out-of-range indices; " +
+                        "passageNodeKeys size=${passageNodeKeys.size}"
+                }
+            }
 
             val topKDocs =
-                sortedDocIds.take(k).map { idx ->
+                validPairs.take(k).map { (idx, _) ->
                     chunkEmbeddingStore.getRow(passageNodeKeys[idx]).content
                 }
+            val topKScores = validPairs.take(k).map { it.second }.toDoubleArray()
 
             retrievalResults.add(
                 QuerySolution(
                     question = query,
                     docs = topKDocs,
-                    docScores = sortedDocScores.take(k).toDoubleArray(),
+                    docScores = topKScores,
                 ),
             )
         }
