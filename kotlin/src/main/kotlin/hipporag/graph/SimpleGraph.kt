@@ -139,6 +139,7 @@ class SimpleGraph(
             val next = DoubleArray(n) { (1.0 - damping) * resetProb[it] }
             for (i in 0 until n) {
                 val weightSum = outWeight[i]
+                // Note: dangling nodes (weightSum == 0) contribute no mass here.
                 if (weightSum == 0.0) continue
                 val contribution = damping * scores[i] / weightSum
                 for ((j, w) in adjacency[i]) {
@@ -178,6 +179,7 @@ class SimpleGraph(
             val graph = SimpleGraph(data.directed)
             val attributes = mutableMapOf<String, MutableList<Any>>()
             if (data.vertices.isNotEmpty()) {
+                // Assumes a uniform attribute schema across all vertices.
                 val keys = data.vertices.first().keys
                 for (k in keys) {
                     attributes[k] = mutableListOf()

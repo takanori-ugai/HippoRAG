@@ -39,7 +39,7 @@ fun runDemo(
             configure(this, parsed)
         }
 
-    val hipporag = HippoRag(globalConfig = config)
+    val hipporag = HippoRag(config = config)
     hipporag.index(docs)
     hipporag.ragQa(queries = queries, goldDocs = null, goldAnswers = null)
 }

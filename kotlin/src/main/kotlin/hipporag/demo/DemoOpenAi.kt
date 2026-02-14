@@ -1,7 +1,5 @@
 package hipporag.demo
 
-import hipporag.utils.stringToBool
-
 /**
  * Demo entry point configured for OpenAI-compatible endpoints.
  */

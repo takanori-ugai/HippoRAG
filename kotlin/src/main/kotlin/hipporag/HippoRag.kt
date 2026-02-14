@@ -66,12 +66,32 @@ class HippoRag(
     azureEndpoint: String? = null,
     azureEmbeddingEndpoint: String? = null,
 ) {
-    constructor(globalConfig: BaseConfig? = null) : this(initialConfig = globalConfig)
+    constructor(config: BaseConfig? = null) : this(initialConfig = config)
 
     private val logger = KotlinLogging.logger {}
 
     /** Effective configuration copied from [initialConfig] with any overrides applied. */
-    val globalConfig: BaseConfig = (initialConfig ?: BaseConfig()).copy()
+    val globalConfig: BaseConfig =
+        run {
+            val saveDirOverride = saveDir
+            val llmModelNameOverride = llmModelName
+            val llmBaseUrlOverride = llmBaseUrl
+            val embeddingModelNameOverride = embeddingModelName
+            val embeddingBaseUrlOverride = embeddingBaseUrl
+            val azureEndpointOverride = azureEndpoint
+            val azureEmbeddingEndpointOverride = azureEmbeddingEndpoint
+            (initialConfig ?: BaseConfig())
+                .copy()
+                .apply {
+                    if (saveDirOverride != null) this.saveDir = saveDirOverride
+                    if (llmModelNameOverride != null) this.llmName = llmModelNameOverride
+                    if (embeddingModelNameOverride != null) this.embeddingModelName = embeddingModelNameOverride
+                    if (llmBaseUrlOverride != null) this.llmBaseUrl = llmBaseUrlOverride
+                    if (embeddingBaseUrlOverride != null) this.embeddingBaseUrl = embeddingBaseUrlOverride
+                    if (azureEndpointOverride != null) this.azureEndpoint = azureEndpointOverride
+                    if (azureEmbeddingEndpointOverride != null) this.azureEmbeddingEndpoint = azureEmbeddingEndpointOverride
+                }
+        }
 
     private val workingDir: String
 
@@ -117,15 +137,6 @@ class HippoRag(
     private var procTriplesToDocs: MutableMap<String, MutableSet<String>> = mutableMapOf()
 
     init {
-        // Overwrite configuration if specified
-        if (saveDir != null) globalConfig.saveDir = saveDir
-        if (llmModelName != null) globalConfig.llmName = llmModelName
-        if (embeddingModelName != null) globalConfig.embeddingModelName = embeddingModelName
-        if (llmBaseUrl != null) globalConfig.llmBaseUrl = llmBaseUrl
-        if (embeddingBaseUrl != null) globalConfig.embeddingBaseUrl = embeddingBaseUrl
-        if (azureEndpoint != null) globalConfig.azureEndpoint = azureEndpoint
-        if (azureEmbeddingEndpoint != null) globalConfig.azureEmbeddingEndpoint = azureEmbeddingEndpoint
-
         val configDump = globalConfig.toMap().entries.joinToString(",\n  ") { (k, v) -> "$k = $v" }
         logger.debug { "HippoRAG init with config:\n  $configDump\n" }
 
@@ -575,8 +586,6 @@ class HippoRag(
     /**
      * Executes QA prompts over retrieved passages.
      *
-     * Note: Mutates [queries] by setting the `answer` field on each [QuerySolution].
-     *
      * @return updated solutions, response messages, and per-response metadata.
      */
     fun qa(queries: List<QuerySolution>): Triple<List<QuerySolution>, List<String>, List<Map<String, Any?>>> {
@@ -623,13 +632,12 @@ class HippoRag(
         val allResponseMessage = allQaResults.map { it.response }
         val allMetadata = allQaResults.map { it.metadata }
 
-        val querySolutions = mutableListOf<QuerySolution>()
-        queries.forEachIndexed { idx, querySolution ->
-            val responseContent = allResponseMessage[idx]
-            val predAns = responseContent.substringAfter("Answer:", responseContent).trim()
-            querySolution.answer = predAns
-            querySolutions.add(querySolution)
-        }
+        val querySolutions =
+            queries.mapIndexed { idx, querySolution ->
+                val responseContent = allResponseMessage[idx]
+                val predAns = responseContent.substringAfter("Answer:", responseContent).trim()
+                querySolution.copy(answer = predAns)
+            }
 
         return Triple(querySolutions, allResponseMessage, allMetadata)
     }

@@ -15,6 +15,7 @@ class StandardRag(
     llmModelName: String? = null,
     embeddingModelName: String? = null,
     llmBaseUrl: String? = null,
+    embeddingBaseUrl: String? = null,
     azureEndpoint: String? = null,
     azureEmbeddingEndpoint: String? = null,
 ) {
@@ -26,10 +27,11 @@ class StandardRag(
         if (llmModelName != null) config.llmName = llmModelName
         if (embeddingModelName != null) config.embeddingModelName = embeddingModelName
         if (llmBaseUrl != null) config.llmBaseUrl = llmBaseUrl
+        if (embeddingBaseUrl != null) config.embeddingBaseUrl = embeddingBaseUrl
         if (azureEndpoint != null) config.azureEndpoint = azureEndpoint
         if (azureEmbeddingEndpoint != null) config.azureEmbeddingEndpoint = azureEmbeddingEndpoint
 
-        hippoRag = HippoRag(globalConfig = config)
+        hippoRag = HippoRag(config = config)
     }
 
     /** Indexes documents for DPR-only retrieval. */

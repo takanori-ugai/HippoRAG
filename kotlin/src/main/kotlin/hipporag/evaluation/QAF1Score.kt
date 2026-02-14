@@ -30,11 +30,10 @@ class QAF1Score {
         ): Double {
             val goldTokens = normalizeAnswer(gold).split(" ").filter { it.isNotEmpty() }
             val predictedTokens = normalizeAnswer(predicted).split(" ").filter { it.isNotEmpty() }
+            if (goldTokens.isEmpty() || predictedTokens.isEmpty()) return 0.0
 
             val goldCounts = goldTokens.groupingBy { it }.eachCount()
             val predictedCounts = predictedTokens.groupingBy { it }.eachCount()
-
-            if (predictedTokens.isEmpty() || goldTokens.isEmpty()) return 0.0
 
             var numSame = 0
             for ((token, count) in predictedCounts) {
@@ -53,6 +52,10 @@ class QAF1Score {
         var totalF1 = 0.0
 
         for ((goldList, predicted) in goldAnswers.zip(predictedAnswers)) {
+            if (goldList.isEmpty()) {
+                exampleEvalResults.add(mapOf("F1" to 0.0))
+                continue
+            }
             val f1Scores = goldList.map { gold -> computeF1(gold, predicted) }
             val aggregatedF1 = aggregationFn(f1Scores)
             exampleEvalResults.add(mapOf("F1" to aggregatedF1))

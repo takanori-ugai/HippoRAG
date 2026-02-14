@@ -34,7 +34,7 @@ fun main(args: Array<String>) {
     parsed.forceOpenieFromScratch?.let { config.forceOpenieFromScratch = stringToBool(it) }
     parsed.rerankDspyFilePath?.let { config.rerankDspyFilePath = it }
 
-    val hipporag = HippoRag(globalConfig = config)
+    val hipporag = HippoRag(config = config)
     hipporag.index(docs)
     val result = hipporag.ragQa(queries = queries, goldDocs = null, goldAnswers = null)
     printAnswers(result)

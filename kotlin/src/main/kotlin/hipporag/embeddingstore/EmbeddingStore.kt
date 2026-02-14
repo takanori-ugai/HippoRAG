@@ -154,6 +154,11 @@ class EmbeddingStore(
         texts: List<String>,
         embeddings: Array<DoubleArray>,
     ) {
+        val duplicateIds = hashIds.filter { it in hashIdToIdx }
+        require(duplicateIds.isEmpty()) {
+            "Embedding store upsert received existing hash IDs: ${duplicateIds.take(5)}" +
+                if (duplicateIds.size > 5) " (and ${duplicateIds.size - 5} more)" else ""
+        }
         this.hashIds.addAll(hashIds)
         this.texts.addAll(texts)
         this.embeddings.addAll(embeddings)

@@ -151,7 +151,6 @@ private fun findLastCommaOutsideString(input: String): Int {
 /**
  * Executes [block] with exponential backoff and jitter.
  */
-@Suppress("TooGenericExceptionCaught")
 fun <T> retryWithBackoff(
     maxAttempts: Int,
     baseDelayMillis: Long = 250,
@@ -163,17 +162,24 @@ fun <T> retryWithBackoff(
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
     var attempt = 0
     while (attempt < maxAttempts) {
-        try {
-            return block()
-        } catch (e: Throwable) {
-            if (!retryOn(e) || attempt == maxAttempts - 1) {
-                throw e
-            }
-            val exponent = 1 shl attempt.coerceAtMost(10)
-            val delay = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
-            val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
-            Thread.sleep(delay + jitter)
+        val result = runCatching { block() }
+        if (result.isSuccess) {
+            return result.getOrThrow()
         }
+        val error = result.exceptionOrNull() ?: error("retryWithBackoff: missing failure")
+        if (error is CancellationException) {
+            throw error
+        }
+        if (error is Error) {
+            throw error
+        }
+        if (!retryOn(error) || attempt == maxAttempts - 1) {
+            throw error
+        }
+        val exponent = 1 shl attempt.coerceAtMost(10)
+        val delay = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
+        val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
+        Thread.sleep(delay + jitter)
         attempt += 1
     }
     error("retryWithBackoff: unreachable")
@@ -182,7 +188,6 @@ fun <T> retryWithBackoff(
 /**
  * Executes [block] with exponential backoff and jitter without blocking the thread.
  */
-@Suppress("TooGenericExceptionCaught")
 suspend fun <T> retryWithBackoffSuspend(
     maxAttempts: Int,
     baseDelayMillis: Long = 250,
@@ -194,19 +199,24 @@ suspend fun <T> retryWithBackoffSuspend(
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
     var attempt = 0
     while (attempt < maxAttempts) {
-        try {
-            return block()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            if (!retryOn(e) || attempt == maxAttempts - 1) {
-                throw e
-            }
-            val exponent = 1 shl attempt.coerceAtMost(10)
-            val delayMillis = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
-            val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
-            delay(delayMillis + jitter)
+        val result = runCatching { block() }
+        if (result.isSuccess) {
+            return result.getOrThrow()
         }
+        val error = result.exceptionOrNull() ?: error("retryWithBackoffSuspend: missing failure")
+        if (error is CancellationException) {
+            throw error
+        }
+        if (error is Error) {
+            throw error
+        }
+        if (!retryOn(error) || attempt == maxAttempts - 1) {
+            throw error
+        }
+        val exponent = 1 shl attempt.coerceAtMost(10)
+        val delayMillis = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
+        val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
+        delay(delayMillis + jitter)
         attempt += 1
     }
     error("retryWithBackoffSuspend: unreachable")
@@ -222,9 +232,7 @@ fun convertFormatToTemplate(
 ): String {
     val mapping = placeholderMapping ?: emptyMap()
     val statics = staticValues ?: emptyMap()
-    val pattern = Regex("\\{(\\w+)\\}") // Using Kotlin's Regex
-
-    return pattern.replace(originalString) { matchResult ->
+    return TEMPLATE_PLACEHOLDER_REGEX.replace(originalString) { matchResult ->
         val originalPlaceholder = matchResult.groupValues[1]
         when {
             statics.containsKey(originalPlaceholder) -> statics.getValue(originalPlaceholder).toString()
@@ -232,3 +240,5 @@ fun convertFormatToTemplate(
         }
     }
 }
+
+private val TEMPLATE_PLACEHOLDER_REGEX = Regex("\\{(\\w+)\\}")

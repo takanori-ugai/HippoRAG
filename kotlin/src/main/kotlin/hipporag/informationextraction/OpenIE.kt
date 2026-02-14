@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package hipporag.informationextraction
 
 import hipporag.llm.BaseLLM
@@ -49,7 +47,7 @@ class OpenIE(
         passage: String,
     ): NerRawOutput {
         val messages = promptTemplateManager.render("ner", mapOf("passage" to passage))
-        return try {
+        return runCatching {
             val result = llmModel.infer(messages)
             val entities = extractNamedEntitiesFromResponse(result.response, json)
             NerRawOutput(
@@ -58,7 +56,10 @@ class OpenIE(
                 uniqueEntities = entities.distinct(),
                 metadata = result.metadata,
             )
-        } catch (e: Exception) {
+        }.getOrElse { e ->
+            if (e is Error) {
+                throw e
+            }
             logger.warn(e) { "NER failed for chunk $chunkKey" }
             NerRawOutput(
                 chunkId = chunkKey,
@@ -80,7 +81,7 @@ class OpenIE(
                 "triple_extraction",
                 mapOf("passage" to passage, "named_entity_json" to namedEntityJson),
             )
-        return try {
+        return runCatching {
             val result = llmModel.infer(messages)
             val triples = extractTriplesFromResponse(result.response, json)
             TripleRawOutput(
@@ -89,7 +90,10 @@ class OpenIE(
                 triples = filterInvalidTriples(triples),
                 metadata = result.metadata,
             )
-        } catch (e: Exception) {
+        }.getOrElse { e ->
+            if (e is Error) {
+                throw e
+            }
             logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
             TripleRawOutput(
                 chunkId = chunkKey,
@@ -131,31 +135,33 @@ private fun twoPhaseOpenie(
     val namedEntitiesByChunk = mutableMapOf<String, List<String>>()
     for ((chunkKey, row) in rows) {
         val messages = promptTemplateManager.render("ner", mapOf("passage" to row.content))
-        try {
-            val result = llmModel.infer(messages)
-            val entities = extractNamedEntitiesFromResponse(result.response, json)
-            if (entities.isEmpty()) {
-                logger.warn { "No entities extracted for chunk_id: $chunkKey" }
-            }
-            nerResults[chunkKey] =
+        val nerOutput =
+            runCatching {
+                val result = llmModel.infer(messages)
+                val entities = extractNamedEntitiesFromResponse(result.response, json)
+                if (entities.isEmpty()) {
+                    logger.warn { "No entities extracted for chunk_id: $chunkKey" }
+                }
                 NerRawOutput(
                     chunkId = chunkKey,
                     response = result.response,
                     uniqueEntities = entities.distinct(),
                     metadata = result.metadata,
-                )
-            namedEntitiesByChunk[chunkKey] = entities
-        } catch (e: Exception) {
-            logger.warn(e) { "NER failed for chunk $chunkKey" }
-            nerResults[chunkKey] =
+                ) to entities
+            }.getOrElse { e ->
+                if (e is Error) {
+                    throw e
+                }
+                logger.warn(e) { "NER failed for chunk $chunkKey" }
                 NerRawOutput(
                     chunkId = chunkKey,
                     response = null,
                     uniqueEntities = emptyList(),
                     metadata = mapOf("error" to e.message.orEmpty()),
-                )
-            namedEntitiesByChunk[chunkKey] = emptyList()
-        }
+                ) to emptyList()
+            }
+        nerResults[chunkKey] = nerOutput.first
+        namedEntitiesByChunk[chunkKey] = nerOutput.second
     }
 
     for ((chunkKey, row) in rows) {
@@ -166,29 +172,32 @@ private fun twoPhaseOpenie(
                 "triple_extraction",
                 mapOf("passage" to row.content, "named_entity_json" to namedEntityJson),
             )
-        try {
-            val result = llmModel.infer(messages)
-            val triples = extractTriplesFromResponse(result.response, json)
-            if (triples.isEmpty()) {
-                logger.warn { "No triples extracted for chunk_id: $chunkKey" }
-            }
-            tripleResults[chunkKey] =
+        val tripleOutput =
+            runCatching {
+                val result = llmModel.infer(messages)
+                val triples = extractTriplesFromResponse(result.response, json)
+                if (triples.isEmpty()) {
+                    logger.warn { "No triples extracted for chunk_id: $chunkKey" }
+                }
                 TripleRawOutput(
                     chunkId = chunkKey,
                     response = result.response,
                     triples = filterInvalidTriples(triples),
                     metadata = result.metadata,
                 )
-        } catch (e: Exception) {
-            logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
-            tripleResults[chunkKey] =
+            }.getOrElse { e ->
+                if (e is Error) {
+                    throw e
+                }
+                logger.warn(e) { "Triple extraction failed for chunk $chunkKey" }
                 TripleRawOutput(
                     chunkId = chunkKey,
                     response = null,
                     triples = emptyList(),
                     metadata = mapOf("error" to e.message.orEmpty()),
                 )
-        }
+            }
+        tripleResults[chunkKey] = tripleOutput
     }
 
     return nerResults to tripleResults
@@ -220,6 +229,8 @@ class VllmOfflineOpenIE(
 
 /**
  * Offline OpenIE extractor that targets transformer-based local models.
+ *
+ * Extension point: add model-specific prompt setup or decoding behavior here.
  */
 class TransformersOfflineOpenIE(
     llmModel: BaseLLM,
