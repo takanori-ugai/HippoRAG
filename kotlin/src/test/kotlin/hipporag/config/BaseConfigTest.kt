@@ -12,7 +12,7 @@ class BaseConfigTest {
         val config = BaseConfig()
         assertEquals("outputs", config.saveDir)
         assertEquals("gpt-4o-mini", config.llmName)
-        assertEquals("nvidia/NV-Embed-v2", config.embeddingModelName)
+        assertEquals("text-embedding-3-large", config.embeddingModelName)
         assertNull(config.llmBaseUrl)
         assertNull(config.embeddingBaseUrl)
         assertEquals("online", config.openieMode)

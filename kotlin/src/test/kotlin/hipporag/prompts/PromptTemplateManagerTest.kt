@@ -16,8 +16,8 @@ class PromptTemplateManagerTest {
             )
 
         val templates = manager.listTemplateNames()
-        if ("ner" in templates) {
-            val messages = manager.render("ner", promptUser = "Test passage")
+        if ("rag_qa_musique" in templates) {
+            val messages = manager.render("rag_qa_musique", promptUser = "Test passage")
             assertTrue(messages.isNotEmpty())
             assertTrue(messages.any { it.content.contains("Test passage") })
         }
@@ -97,10 +97,10 @@ class PromptTemplateManagerTest {
             )
 
         val templates = manager.listTemplateNames()
-        if (templates.isNotEmpty()) {
+        if ("rag_qa_musique" in templates) {
             val messages =
                 manager.render(
-                    templates.first(),
+                    "rag_qa_musique",
                     variables = mapOf("prompt_user" to "custom value"),
                 )
             assertTrue(messages.any { it.content.contains("custom value") })

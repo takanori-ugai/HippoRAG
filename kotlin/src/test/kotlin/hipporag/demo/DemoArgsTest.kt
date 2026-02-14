@@ -14,7 +14,7 @@ class DemoArgsTest {
         assertEquals("queries.json", parsed.queriesPath)
         assertEquals("outputs", parsed.saveDir)
         assertEquals("gpt-4o-mini", parsed.llmName)
-        assertEquals("nvidia/NV-Embed-v2", parsed.embeddingName)
+        assertEquals("text-embedding-3-large", parsed.embeddingName)
     }
 
     @Test
@@ -95,7 +95,7 @@ class DemoArgsTest {
 
         assertEquals("outputs", parsed.saveDir)
         assertEquals("gpt-4o-mini", parsed.llmName)
-        assertEquals("nvidia/NV-Embed-v2", parsed.embeddingName)
+        assertEquals("text-embedding-3-large", parsed.embeddingName)
     }
 
     @Test
