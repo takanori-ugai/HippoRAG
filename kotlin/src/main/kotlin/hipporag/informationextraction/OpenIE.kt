@@ -281,7 +281,9 @@ private fun extractNamedEntitiesFromResponse(
     }
     val jsonObject = extractJsonObjectWithKey(response, "named_entities", json) ?: return emptyList()
     val entities = jsonObject["named_entities"]?.jsonArray ?: return emptyList()
-    return entities.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }.filter { it.isNotEmpty() }
+    return entities
+        .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim() }
+        .filter { it.isNotEmpty() }
 }
 
 private fun extractTriplesFromResponse(
@@ -311,10 +313,11 @@ private inline fun <T> safeExtract(
     block: () -> T,
 ): T =
     runCatching { block() }.getOrElse { e ->
-        if (e is Error) {
-            throw e
-        }
         when (e) {
+            is Error -> {
+                throw e
+            }
+
             is Exception -> {
                 logger.warn(e) { "$operation failed for chunk $chunkKey" }
                 fallback(e)

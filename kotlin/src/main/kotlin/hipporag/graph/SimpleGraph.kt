@@ -1,6 +1,7 @@
 package hipporag.graph
 
 import hipporag.utils.jsonWithDefaults
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import java.io.File
@@ -13,6 +14,8 @@ import java.io.File
 class SimpleGraph(
     private val directed: Boolean,
 ) {
+    private val logger = KotlinLogging.logger {}
+
     private val vertices = mutableListOf<MutableMap<String, Any>>()
     private val edges = mutableListOf<Edge>()
     private val nameToIndex = mutableMapOf<String, Int>()
@@ -67,6 +70,11 @@ class SimpleGraph(
             val targetIdx = nameToIndex[pair.second]
             if (sourceIdx != null && targetIdx != null) {
                 edges.add(Edge(sourceIdx, targetIdx, weight))
+            } else {
+                logger.warn {
+                    "Skipping edge due to unknown vertex name(s): " +
+                        "source=${pair.first}, target=${pair.second}"
+                }
             }
         }
     }
@@ -82,6 +90,10 @@ class SimpleGraph(
                 val sourceName = vertices.getOrNull(edge.source)?.get("name")?.toString()
                 val targetName = vertices.getOrNull(edge.target)?.get("name")?.toString()
                 if (sourceName == null || targetName == null) {
+                    logger.warn {
+                        "Dropping edge with unnamed vertex during deleteVertices: " +
+                            "sourceIndex=${edge.source}, targetIndex=${edge.target}"
+                    }
                     null
                 } else if (sourceName in removeSet || targetName in removeSet) {
                     null
@@ -193,17 +205,18 @@ class SimpleGraph(
             val graph = SimpleGraph(data.directed)
             val attributes = mutableMapOf<String, MutableList<Any>>()
             if (data.vertices.isNotEmpty()) {
-                val keys = data.vertices.flatMap { it.keys }.toSet()
-                for (k in keys) {
-                    attributes[k] = mutableListOf()
-                }
                 for (vertex in data.vertices) {
-                    for (k in keys) {
-                        val value = vertex[k] ?: ""
-                        attributes.getValue(k).add(value)
+                    val attr = vertex.toMutableMap()
+                    val idx = graph.vertices.size
+                    graph.vertices.add(attr)
+                    val name = attr["name"]?.toString()
+                    if (name != null) {
+                        require(graph.nameToIndex[name] == null) {
+                            "Duplicate vertex name '$name' at index $idx"
+                        }
+                        graph.nameToIndex[name] = idx
                     }
                 }
-                graph.addVertices(attributes)
             }
             if (data.edges.isNotEmpty()) {
                 for (edge in data.edges) {

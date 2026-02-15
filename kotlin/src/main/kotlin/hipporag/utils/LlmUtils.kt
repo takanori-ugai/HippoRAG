@@ -158,6 +158,7 @@ private fun findLastCommaOutsideString(input: String): Int {
 /**
  * Executes [block] with exponential backoff and jitter.
  */
+@Suppress("TooGenericExceptionCaught")
 fun <T> retryWithBackoff(
     maxAttempts: Int,
     baseDelayMillis: Long = 250,
@@ -192,6 +193,7 @@ fun <T> retryWithBackoff(
 /**
  * Executes [block] with exponential backoff and jitter without blocking the thread.
  */
+@Suppress("TooGenericExceptionCaught")
 suspend fun <T> retryWithBackoffSuspend(
     maxAttempts: Int,
     baseDelayMillis: Long = 250,

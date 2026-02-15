@@ -73,7 +73,13 @@ class EmbeddingStore(
      * Inserts [texts] into the store, computing embeddings for missing entries.
      */
     fun insertStrings(texts: List<String>) {
-        val nodesDict = buildNodesDict(texts)
+        val cleanedTexts = texts.filter { it.isNotBlank() }
+        if (cleanedTexts.size < texts.size) {
+            logger.warn {
+                "Skipping ${texts.size - cleanedTexts.size} blank texts for namespace '$namespace' during insert."
+            }
+        }
+        val nodesDict = buildNodesDict(cleanedTexts)
 
         if (nodesDict.isEmpty()) return
 
@@ -135,12 +141,12 @@ class EmbeddingStore(
     /**
      * Deletes embeddings by [hashIds] and persists the updated store.
      */
-    fun delete(hashIds: Collection<String>) {
-        val missingIds = hashIds.filter { it !in hashIdToIdx }
+    fun delete(idsToDelete: Collection<String>) {
+        val missingIds = idsToDelete.filter { it !in hashIdToIdx }
         if (missingIds.isNotEmpty()) {
             logger.warn { "Ignoring ${missingIds.size} unknown hash IDs during delete." }
         }
-        val indices = hashIds.mapNotNull { hashIdToIdx[it] }.distinct().sortedDescending()
+        val indices = idsToDelete.mapNotNull { hashIdToIdx[it] }.distinct().sortedDescending()
         for (idx in indices) {
             this.hashIds.removeAt(idx)
             this.texts.removeAt(idx)
@@ -157,6 +163,9 @@ class EmbeddingStore(
         newTexts: List<String>,
         newEmbeddings: Array<DoubleArray>,
     ) {
+        require(newHashIds.size == newTexts.size && newTexts.size == newEmbeddings.size) {
+            "Mismatched sizes: hashIds=${newHashIds.size}, texts=${newTexts.size}, embeddings=${newEmbeddings.size}"
+        }
         val duplicateIds = newHashIds.filter { it in hashIdToIdx }
         require(duplicateIds.isEmpty()) {
             "Embedding store insertNew received existing hash IDs: ${duplicateIds.take(5)}" +
@@ -218,12 +227,21 @@ class EmbeddingStore(
         val target = File(filename)
         val tmp = File("$filename.tmp")
         tmp.writeText(json.encodeToString(EmbeddingStoreData.serializer(), data))
-        java.nio.file.Files.move(
-            tmp.toPath(),
-            target.toPath(),
-            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-        )
+        try {
+            java.nio.file.Files.move(
+                tmp.toPath(),
+                target.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            logger.warn { "Atomic move not supported; falling back to non-atomic replace." }
+            java.nio.file.Files.move(
+                tmp.toPath(),
+                target.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            )
+        }
         logger.info { "Saved ${hashIds.size} records to $filename" }
     }
 

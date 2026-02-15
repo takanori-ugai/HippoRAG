@@ -73,23 +73,16 @@ class HippoRag(
     /** Effective configuration copied from [initialConfig] with any overrides applied. */
     val globalConfig: BaseConfig =
         run {
-            val saveDirOverride = saveDir
-            val llmModelNameOverride = llmModelName
-            val llmBaseUrlOverride = llmBaseUrl
-            val embeddingModelNameOverride = embeddingModelName
-            val embeddingBaseUrlOverride = embeddingBaseUrl
-            val azureEndpointOverride = azureEndpoint
-            val azureEmbeddingEndpointOverride = azureEmbeddingEndpoint
             (initialConfig ?: BaseConfig())
                 .copy()
                 .apply {
-                    if (saveDirOverride != null) this.saveDir = saveDirOverride
-                    if (llmModelNameOverride != null) this.llmName = llmModelNameOverride
-                    if (embeddingModelNameOverride != null) this.embeddingModelName = embeddingModelNameOverride
-                    if (llmBaseUrlOverride != null) this.llmBaseUrl = llmBaseUrlOverride
-                    if (embeddingBaseUrlOverride != null) this.embeddingBaseUrl = embeddingBaseUrlOverride
-                    if (azureEndpointOverride != null) this.azureEndpoint = azureEndpointOverride
-                    if (azureEmbeddingEndpointOverride != null) this.azureEmbeddingEndpoint = azureEmbeddingEndpointOverride
+                    if (saveDir != null) this.saveDir = saveDir
+                    if (llmModelName != null) this.llmName = llmModelName
+                    if (embeddingModelName != null) this.embeddingModelName = embeddingModelName
+                    if (llmBaseUrl != null) this.llmBaseUrl = llmBaseUrl
+                    if (embeddingBaseUrl != null) this.embeddingBaseUrl = embeddingBaseUrl
+                    if (azureEndpoint != null) this.azureEndpoint = azureEndpoint
+                    if (azureEmbeddingEndpoint != null) this.azureEmbeddingEndpoint = azureEmbeddingEndpoint
                 }
         }
 
@@ -231,7 +224,16 @@ class HippoRag(
         logger.info { "Indexing Documents" }
         logger.info { "Performing OpenIE Offline" }
 
-        val chunks = chunkEmbeddingStore.getMissingStringHashIds(docs)
+        val cleanedDocs = docs.filter { it.isNotBlank() }
+        if (cleanedDocs.size < docs.size) {
+            logger.warn { "Skipping ${docs.size - cleanedDocs.size} blank documents during preOpenie." }
+        }
+        if (cleanedDocs.isEmpty()) {
+            logger.warn { "No non-blank documents provided for preOpenie; skipping." }
+            return
+        }
+
+        val chunks = chunkEmbeddingStore.getMissingStringHashIds(cleanedDocs)
         val (allOpenieInfo, chunkKeysToProcess) = loadExistingOpenie(chunks.keys.toList())
         val newOpenieRows = chunks.filterKeys { it in chunkKeysToProcess }
 
@@ -259,7 +261,16 @@ class HippoRag(
             return
         }
 
-        chunkEmbeddingStore.insertStrings(docs)
+        val cleanedDocs = docs.filter { it.isNotBlank() }
+        if (cleanedDocs.size < docs.size) {
+            logger.warn { "Skipping ${docs.size - cleanedDocs.size} blank documents during index." }
+        }
+        if (cleanedDocs.isEmpty()) {
+            logger.warn { "No non-blank documents provided for index; skipping." }
+            return
+        }
+
+        chunkEmbeddingStore.insertStrings(cleanedDocs)
         val chunkToRows = chunkEmbeddingStore.getAllIdToRows()
 
         val (allOpenieInfo, chunkKeysToProcess) = loadExistingOpenie(chunkToRows.keys.toList())
@@ -503,7 +514,7 @@ class HippoRag(
                 qaSolutions.mapIndexed { idx, solution ->
                     solution.copy(
                         goldAnswers = goldAnswers[idx].toMutableList(),
-                        goldDocs = goldDocs?.get(idx)?.toMutableList(),
+                        goldDocs = goldDocs?.getOrNull(idx)?.toMutableList(),
                     )
                 }
 
@@ -1342,6 +1353,10 @@ class HippoRag(
             return dprSortedDocIds to dprSortedDocScores
         }
 
+        logger.info {
+            "Running PPR with ${nodeWeights.size} nodes and total weight " +
+                String.format(Locale.US, "%.6f", nodeWeights.sum())
+        }
         val pprStart = nowSeconds()
         val (pprSortedDocIds, pprSortedDocScores) = runPpr(nodeWeights, damping = globalConfig.damping)
         val pprEnd = nowSeconds()

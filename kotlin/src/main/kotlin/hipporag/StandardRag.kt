@@ -31,7 +31,11 @@ class StandardRag(
             azureEmbeddingEndpoint = azureEmbeddingEndpoint,
         )
 
-    /** Indexes documents for DPR-only retrieval. */
+    /**
+     * Indexes documents for DPR-only retrieval.
+     * Note: this delegates to [HippoRag.index], which runs OpenIE + graph construction even though DPR-only
+     * retrieval does not use the graph. This keeps the index compatible with graph-based retrieval if needed.
+     */
     fun index(docs: List<String>) {
         hippoRag.index(docs)
     }
