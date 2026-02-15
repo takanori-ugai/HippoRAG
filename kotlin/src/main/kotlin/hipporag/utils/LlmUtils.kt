@@ -26,30 +26,24 @@ fun filterInvalidTriples(triples: List<List<String>>): List<List<String>> {
 /**
  * Decodes unicode escape sequences (e.g., `\\uXXXX`) in [content].
  */
-fun safeUnicodeDecode(content: Any): String {
-    val text =
-        when (content) {
-            is ByteArray -> content.toString(Charsets.UTF_8)
-            is String -> content
-            else -> throw IllegalArgumentException("Input must be of type ByteArray or String.")
-        }
-    if (!text.contains("\\u")) return text
+fun safeUnicodeDecode(content: String): String {
+    if (!content.contains("\\u")) return content
 
-    val builder = StringBuilder(text.length)
+    val builder = StringBuilder(content.length)
     var index = 0
-    while (index < text.length) {
-        val char = text[index]
-        if (char == '\\' && index + 5 < text.length && text[index + 1] == 'u') {
-            val hex = text.substring(index + 2, index + 6)
+    while (index < content.length) {
+        val char = content[index]
+        if (char == '\\' && index + 5 < content.length && content[index + 1] == 'u') {
+            val hex = content.substring(index + 2, index + 6)
             val codeUnit = hex.toIntOrNull(16)
             if (codeUnit != null) {
                 val decoded = codeUnit.toChar()
                 if (Character.isHighSurrogate(decoded) &&
-                    index + 11 < text.length &&
-                    text[index + 6] == '\\' &&
-                    text[index + 7] == 'u'
+                    index + 11 < content.length &&
+                    content[index + 6] == '\\' &&
+                    content[index + 7] == 'u'
                 ) {
-                    val lowHex = text.substring(index + 8, index + 12)
+                    val lowHex = content.substring(index + 8, index + 12)
                     val lowUnit = lowHex.toIntOrNull(16)
                     if (lowUnit != null) {
                         val low = lowUnit.toChar()
@@ -73,10 +67,20 @@ fun safeUnicodeDecode(content: Any): String {
 }
 
 /**
+ * Decodes unicode escape sequences (e.g., `\\uXXXX`) in [content].
+ */
+fun safeUnicodeDecode(content: ByteArray): String = safeUnicodeDecode(content.toString(Charsets.UTF_8))
+
+/**
  * Attempts to repair truncated JSON by closing unbalanced brackets.
  */
 fun fixBrokenGeneratedJson(jsonStr: String): String {
-    fun findUnclosed(input: String): List<Char> {
+    data class UnclosedResult(
+        val stack: List<Char>,
+        val insideString: Boolean,
+    )
+
+    fun findUnclosed(input: String): UnclosedResult {
         val unclosed = mutableListOf<Char>()
         var insideString = false
         var escapeNext = false
@@ -108,20 +112,23 @@ fun fixBrokenGeneratedJson(jsonStr: String): String {
                 }
             }
         }
-        return unclosed
+        return UnclosedResult(unclosed, insideString)
     }
 
     val unclosedOriginal = findUnclosed(jsonStr)
-    if (unclosedOriginal.isEmpty()) return jsonStr
+    if (unclosedOriginal.stack.isEmpty()) return jsonStr
 
     val lastCommaIndex = findLastCommaOutsideString(jsonStr)
     val truncated = if (lastCommaIndex != -1) jsonStr.substring(0, lastCommaIndex) else jsonStr
     val unclosed = findUnclosed(truncated)
-    if (unclosed.isEmpty()) return truncated
+    if (unclosed.stack.isEmpty()) return truncated
 
     val closingMap = mapOf('{' to '}', '[' to ']')
     val builder = StringBuilder(truncated)
-    for (openChar in unclosed.asReversed()) {
+    if (unclosed.insideString) {
+        builder.append('"')
+    }
+    for (openChar in unclosed.stack.asReversed()) {
         builder.append(closingMap.getValue(openChar))
     }
     return builder.toString()
@@ -156,7 +163,7 @@ fun <T> retryWithBackoff(
     baseDelayMillis: Long = 250,
     maxDelayMillis: Long = 4000,
     jitterMillis: Long = 100,
-    retryOn: (Throwable) -> Boolean = { it is Exception },
+    retryOn: (Exception) -> Boolean = { true },
     block: () -> T,
 ): T {
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
@@ -168,7 +175,7 @@ fun <T> retryWithBackoff(
             throw e
         } catch (e: Error) {
             throw e
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             if (!retryOn(e) || attempt == maxAttempts - 1) {
                 throw e
             }
@@ -190,7 +197,7 @@ suspend fun <T> retryWithBackoffSuspend(
     baseDelayMillis: Long = 250,
     maxDelayMillis: Long = 4000,
     jitterMillis: Long = 100,
-    retryOn: (Throwable) -> Boolean = { it is Exception },
+    retryOn: (Exception) -> Boolean = { true },
     block: suspend () -> T,
 ): T {
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
@@ -202,7 +209,7 @@ suspend fun <T> retryWithBackoffSuspend(
             throw e
         } catch (e: Error) {
             throw e
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             if (!retryOn(e) || attempt == maxAttempts - 1) {
                 throw e
             }

@@ -499,15 +499,16 @@ class HippoRag(
                 }
             logger.info { "Evaluation results for QA: $overallQaResults" }
 
-            qaSolutions.forEachIndexed { idx, q ->
-                q.goldAnswers = goldAnswers[idx].toMutableList()
-                if (goldDocs != null) {
-                    q.goldDocs = goldDocs[idx].toMutableList()
+            val qaSolutionsWithGold =
+                qaSolutions.mapIndexed { idx, solution ->
+                    solution.copy(
+                        goldAnswers = goldAnswers[idx].toMutableList(),
+                        goldDocs = goldDocs?.get(idx)?.toMutableList(),
+                    )
                 }
-            }
 
             return RagQaResult(
-                solutions = qaSolutions,
+                solutions = qaSolutionsWithGold,
                 responseMessages = allResponseMessage,
                 metadata = allMetadata,
                 overallRetrievalResult = overallRetrievalResult,
@@ -810,7 +811,8 @@ class HippoRag(
         allRetrievalTimeSeconds = 0.0
 
         check(embeddingModel != null) {
-            "Embedding model is required for retrieval. If you used openieMode='offline', set an embedding model or switch to online mode before calling retrieve()."
+            "Embedding model is required for retrieval. If you used openieMode='offline', " +
+                "set an embedding model or switch to online mode before calling retrieve()."
         }
 
         val k = numToRetrieve ?: globalConfig.retrievalTopK

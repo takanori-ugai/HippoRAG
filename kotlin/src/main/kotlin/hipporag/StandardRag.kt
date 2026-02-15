@@ -10,7 +10,7 @@ import hipporag.utils.RagQaResult
  * This variant skips graph-based retrieval and relies on dense passage retrieval.
  */
 class StandardRag(
-    initialConfig: BaseConfig? = null,
+    config: BaseConfig? = null,
     saveDir: String? = null,
     llmModelName: String? = null,
     embeddingModelName: String? = null,
@@ -19,20 +19,17 @@ class StandardRag(
     azureEndpoint: String? = null,
     azureEmbeddingEndpoint: String? = null,
 ) {
-    private val config: BaseConfig = (initialConfig ?: BaseConfig()).copy()
-    private val hippoRag: HippoRag
-
-    init {
-        if (saveDir != null) config.saveDir = saveDir
-        if (llmModelName != null) config.llmName = llmModelName
-        if (embeddingModelName != null) config.embeddingModelName = embeddingModelName
-        if (llmBaseUrl != null) config.llmBaseUrl = llmBaseUrl
-        if (embeddingBaseUrl != null) config.embeddingBaseUrl = embeddingBaseUrl
-        if (azureEndpoint != null) config.azureEndpoint = azureEndpoint
-        if (azureEmbeddingEndpoint != null) config.azureEmbeddingEndpoint = azureEmbeddingEndpoint
-
-        hippoRag = HippoRag(config = config)
-    }
+    private val hippoRag =
+        HippoRag(
+            initialConfig = config,
+            saveDir = saveDir,
+            llmModelName = llmModelName,
+            embeddingModelName = embeddingModelName,
+            llmBaseUrl = llmBaseUrl,
+            embeddingBaseUrl = embeddingBaseUrl,
+            azureEndpoint = azureEndpoint,
+            azureEmbeddingEndpoint = azureEmbeddingEndpoint,
+        )
 
     /** Indexes documents for DPR-only retrieval. */
     fun index(docs: List<String>) {

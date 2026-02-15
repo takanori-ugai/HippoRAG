@@ -83,10 +83,10 @@ class LlmUtilsTest {
     }
 
     @Test
-    fun testSafeUnicodeDecodeInvalidTypeThrows() {
-        assertFailsWith<IllegalArgumentException> {
-            safeUnicodeDecode(123)
-        }
+    fun testSafeUnicodeDecodeByteArrayWithUnicodeEscapes() {
+        val input = "Hello \\u0041 World".toByteArray()
+        val result = safeUnicodeDecode(input)
+        assertEquals("Hello A World", result)
     }
 
     @Test

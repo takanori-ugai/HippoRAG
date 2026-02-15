@@ -44,6 +44,9 @@ class SimpleGraph(
             vertices.add(attr)
             val name = attr["name"]?.toString()
             if (name != null) {
+                require(nameToIndex[name] == null) {
+                    "Duplicate vertex name '$name' at index $idx"
+                }
                 nameToIndex[name] = idx
             }
         }
@@ -56,6 +59,9 @@ class SimpleGraph(
         edgePairs: List<Pair<String, String>>,
         weights: List<Double>,
     ) {
+        require(edgePairs.size == weights.size) {
+            "edgePairs size (${edgePairs.size}) must match weights size (${weights.size})"
+        }
         edgePairs.zip(weights).forEach { (pair, weight) ->
             val sourceIdx = nameToIndex[pair.first]
             val targetIdx = nameToIndex[pair.second]
@@ -115,6 +121,7 @@ class SimpleGraph(
     ): DoubleArray {
         val n = vertices.size
         if (n == 0) return DoubleArray(0)
+        require(reset.size == n) { "reset size (${reset.size}) must match vertex count ($n)" }
 
         val resetSum = reset.sum()
         val resetProb = if (resetSum > 0) reset.map { it / resetSum }.toDoubleArray() else DoubleArray(n) { 1.0 / n }
@@ -199,22 +206,13 @@ class SimpleGraph(
                 graph.addVertices(attributes)
             }
             if (data.edges.isNotEmpty()) {
-                val edgePairs =
-                    data.edges.map { edge ->
-                        val sourceName =
-                            graph.vertices
-                                .getOrNull(edge.source)
-                                ?.get("name")
-                                ?.toString() ?: ""
-                        val targetName =
-                            graph.vertices
-                                .getOrNull(edge.target)
-                                ?.get("name")
-                                ?.toString() ?: ""
-                        sourceName to targetName
+                for (edge in data.edges) {
+                    if (edge.source in 0 until graph.vertices.size &&
+                        edge.target in 0 until graph.vertices.size
+                    ) {
+                        graph.edges.add(Edge(edge.source, edge.target, edge.weight))
                     }
-                val weights = data.edges.map { it.weight }
-                graph.addEdges(edgePairs, weights)
+                }
             }
             return graph
         }

@@ -153,18 +153,18 @@ class EmbeddingStore(
     }
 
     private fun insertNew(
-        hashIds: List<String>,
-        texts: List<String>,
-        embeddings: Array<DoubleArray>,
+        newHashIds: List<String>,
+        newTexts: List<String>,
+        newEmbeddings: Array<DoubleArray>,
     ) {
-        val duplicateIds = hashIds.filter { it in hashIdToIdx }
+        val duplicateIds = newHashIds.filter { it in hashIdToIdx }
         require(duplicateIds.isEmpty()) {
             "Embedding store insertNew received existing hash IDs: ${duplicateIds.take(5)}" +
                 if (duplicateIds.size > 5) " (and ${duplicateIds.size - 5} more)" else ""
         }
-        this.hashIds.addAll(hashIds)
-        this.texts.addAll(texts)
-        this.embeddings.addAll(embeddings)
+        this.hashIds.addAll(newHashIds)
+        this.texts.addAll(newTexts)
+        this.embeddings.addAll(newEmbeddings)
 
         rebuildIndexes()
         logger.info { "Saving new records." }
@@ -215,7 +215,15 @@ class EmbeddingStore(
                 embeddings = embeddings.map { it.toList() },
             )
         val json = jsonWithDefaults { prettyPrint = false }
-        File(filename).writeText(json.encodeToString(EmbeddingStoreData.serializer(), data))
+        val target = File(filename)
+        val tmp = File("$filename.tmp")
+        tmp.writeText(json.encodeToString(EmbeddingStoreData.serializer(), data))
+        java.nio.file.Files.move(
+            tmp.toPath(),
+            target.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+        )
         logger.info { "Saved ${hashIds.size} records to $filename" }
     }
 
@@ -230,7 +238,14 @@ class EmbeddingStore(
             hashIdToText[hashId] = text
             hashIdToRow[hashId] = EmbeddingRow(hashId = hashId, content = text)
         }
-        _textToHashId = hashIdToText.entries.associate { (k, v) -> v to k }
+        val textToHash = mutableMapOf<String, String>()
+        for ((hashId, text) in hashIdToText) {
+            if (textToHash.containsKey(text)) {
+                logger.warn { "Duplicate text key detected in embedding store; keeping last hashId." }
+            }
+            textToHash[text] = hashId
+        }
+        _textToHashId = textToHash
     }
 }
 
