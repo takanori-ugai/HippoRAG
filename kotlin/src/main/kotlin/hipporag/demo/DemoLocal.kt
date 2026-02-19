@@ -1,5 +1,8 @@
 package hipporag.demo
 
+/**
+ * Demo entry point configured for local Ollama endpoints.
+ */
 fun main(args: Array<String>) {
     runDemo(args) { config, parsed ->
         config.llmProvider = "ollama"

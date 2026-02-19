@@ -4,9 +4,15 @@ import dev.langchain4j.data.segment.TextSegment
 import dev.langchain4j.model.embedding.EmbeddingModel
 import hipporag.utils.normalizeVector
 
+/**
+ * Adapter that exposes a LangChain4j [EmbeddingModel] as a [BaseEmbeddingModel].
+ */
 class LangChainEmbeddingModel(
     private val model: EmbeddingModel,
 ) : BaseEmbeddingModel {
+    /**
+     * Encodes [texts] using the underlying LangChain4j model.
+     */
     override fun batchEncode(
         texts: List<String>,
         instruction: String?,

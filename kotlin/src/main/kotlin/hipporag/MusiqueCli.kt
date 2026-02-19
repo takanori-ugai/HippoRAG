@@ -4,28 +4,34 @@ import hipporag.config.BaseConfig
 import hipporag.utils.jsonWithDefaults
 import hipporag.utils.loadConfigFromJson
 import hipporag.utils.stringToBool
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.io.File
 import kotlin.system.exitProcess
 
-/**
- * CLI entry point for running indexing + QA over JSON input files.
- *
- * @param args CLI arguments parsed by [Args.parse].
- */
-fun main(args: Array<String>) {
-    val parsed = Args.parse(args)
-
+internal fun readMusiqueSamples(
+    path: String,
+    limit: Int?,
+): List<MusiqueSample> {
     val json = jsonWithDefaults { ignoreUnknownKeys = true }
-    val docs = readStringListJson(json, parsed.docsPath, "docs")
-    val queries = readStringListJson(json, parsed.queriesPath, "queries")
+    val file = resolveMusiqueFile(path, "input")
+    val lines = file.readLines().filter { it.isNotBlank() }
+    val capped = if (limit != null) lines.take(limit) else lines
+    return capped.map { line -> json.decodeFromString(MusiqueSample.serializer(), line) }
+}
 
+internal fun buildMusiqueConfig(
+    parsed: MusiqueArgs,
+    sampleId: String,
+): BaseConfig {
     val config =
         parsed.configPath
-            ?.let { loadConfigFromJson(resolveSafeFile(it, "config").path) }
+            ?.let { loadConfigFromJson(resolveMusiqueFile(it, "config").path) }
             ?: BaseConfig()
-    parsed.saveDir?.let { config.saveDir = it }
+    parsed.saveDir?.let { base ->
+        val sanitized = sampleId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        config.saveDir = File(base, sanitized).path
+    }
     parsed.llmName?.let { config.llmName = it }
     parsed.llmBaseUrl?.let { config.llmBaseUrl = it }
     parsed.embeddingName?.let { config.embeddingModelName = it }
@@ -33,24 +39,10 @@ fun main(args: Array<String>) {
     parsed.forceIndexFromScratch?.let { config.forceIndexFromScratch = stringToBool(it) }
     parsed.forceOpenieFromScratch?.let { config.forceOpenieFromScratch = stringToBool(it) }
     parsed.rerankDspyFilePath?.let { config.rerankDspyFilePath = it }
-
-    val hipporag = HippoRag(config = config)
-    hipporag.index(docs)
-    val result = hipporag.ragQa(queries = queries, goldDocs = null, goldAnswers = null)
-    printAnswers(result)
+    return config
 }
 
-private fun readStringListJson(
-    json: kotlinx.serialization.json.Json,
-    path: String,
-    label: String,
-): List<String> =
-    json.decodeFromString(
-        ListSerializer(String.serializer()),
-        resolveSafeFile(path, label).readText(),
-    )
-
-private fun resolveSafeFile(
+internal fun resolveMusiqueFile(
     path: String,
     label: String,
 ): File {
@@ -66,18 +58,31 @@ private fun resolveSafeFile(
     return file
 }
 
-private fun printAnswers(result: hipporag.utils.RagQaResult) {
-    println("=== Answers ===")
-    result.solutions.forEachIndexed { idx, solution ->
-        val answer = solution.answer ?: "(no answer)"
-        println("${idx + 1}. Q: ${solution.question}")
-        println("   A: $answer")
-    }
-}
+@Serializable
+internal data class MusiqueParagraph(
+    val idx: Int? = null,
+    val title: String? = null,
+    @SerialName("paragraph_text")
+    val paragraphText: String,
+    @SerialName("is_supporting")
+    val isSupporting: Boolean? = null,
+)
 
-private data class Args(
-    val docsPath: String,
-    val queriesPath: String,
+@Serializable
+internal data class MusiqueSample(
+    val id: String,
+    val paragraphs: List<MusiqueParagraph>,
+    val question: String,
+    val answer: String,
+    @SerialName("answer_aliases")
+    val answerAliases: List<String> = emptyList(),
+    val answerable: Boolean? = null,
+)
+
+internal data class MusiqueArgs(
+    val inputPath: String,
+    val limit: Int?,
+    val parallelism: Int?,
     val configPath: String?,
     val saveDir: String?,
     val llmBaseUrl: String?,
@@ -89,7 +94,7 @@ private data class Args(
     val rerankDspyFilePath: String?,
 ) {
     companion object {
-        fun parse(args: Array<String>): Args {
+        fun parse(args: Array<String>): MusiqueArgs {
             val map = mutableMapOf<String, String>()
             var i = 0
             while (i < args.size) {
@@ -102,12 +107,14 @@ private data class Args(
                 i += 2
             }
 
-            val docs = map["docs"] ?: usageAndExit("Missing required --docs.")
-            val queries = map["queries"] ?: usageAndExit("Missing required --queries.")
+            val input = map["input"] ?: usageAndExit("Missing required --input.")
+            val limit = map["limit"]?.toIntOrNull()
+            val parallelism = map["parallelism"]?.toIntOrNull()
 
-            return Args(
-                docsPath = docs,
-                queriesPath = queries,
+            return MusiqueArgs(
+                inputPath = input,
+                limit = limit,
+                parallelism = parallelism,
                 configPath = map["config"],
                 saveDir = map["save_dir"],
                 llmBaseUrl = map["llm_base_url"],
@@ -125,10 +132,10 @@ private data class Args(
                 System.err.println(reason)
             }
             System.err.println(
-                "Usage: --docs <docs.json> --queries <queries.json> [--config <config.json>] [--save_dir outputs] " +
-                    "[--llm_name gpt-4o-mini] [--llm_base_url <url>] [--embedding_name <name>] " +
-                    "[--openie_mode online] [--force_index_from_scratch false] [--force_openie_from_scratch false] " +
-                    "[--rerank_dspy_file_path <path>]\n" +
+                "Usage: --input <musique.jsonl> [--limit <n>] [--parallelism <n>] [--config <config.json>] " +
+                    "[--save_dir outputs] [--llm_name gpt-4o-mini] [--llm_base_url <url>] " +
+                    "[--embedding_name <name>] [--openie_mode online] [--force_index_from_scratch false] " +
+                    "[--force_openie_from_scratch false] [--rerank_dspy_file_path <path>]\n" +
                     "Note: file paths must resolve within the current working directory.",
             )
             exitProcess(2)

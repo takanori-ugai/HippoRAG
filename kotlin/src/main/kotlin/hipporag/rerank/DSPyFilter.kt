@@ -15,13 +15,15 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
+/**
+ * DSPy-inspired reranker that filters candidate facts using an LLM prompt.
+ */
 class DSPyFilter(
     private val llmModel: BaseLLM,
     private val rerankDspyFilePath: String? = null,
 ) {
     private val logger = KotlinLogging.logger {}
     private val json = jsonWithDefaults { ignoreUnknownKeys = true }
-    private val messageTemplate: List<Message> = buildTemplate()
 
     private val oneInputTemplate =
         """
@@ -42,6 +44,18 @@ class DSPyFilter(
         [[ ## completed ## ]]
         """.trimIndent()
 
+    private val messageTemplate: List<Message> = buildTemplate()
+
+    /**
+     * Reranks [candidateFacts] for [query], returning filtered indices and facts.
+     *
+     * @param query The search query to match against.
+     * @param candidateFacts List of candidate fact triples to filter.
+     * @param candidateFactIndices Original indices of the candidate facts.
+     * @param lenAfterRerank Maximum number of results to return after reranking.
+     * @return Triple of (filtered indices, filtered facts, metadata map with model response or error).
+     *         Falls back to original order if LLM inference fails.
+     */
     fun rerank(
         query: String,
         candidateFacts: List<List<String>>,
@@ -83,14 +97,14 @@ class DSPyFilter(
             Triple(
                 sortedIndices.take(lenAfterRerank),
                 sortedFacts.take(lenAfterRerank),
-                mapOf("model_response" to result.response, "confidence" to null),
+                mapOf("model_response" to result.response),
             )
         }.getOrElse { e ->
             logger.warn(e) { "DSPy rerank failed, falling back to original order." }
             Triple(
                 candidateFactIndices.take(lenAfterRerank),
                 candidateFacts.take(lenAfterRerank),
-                mapOf("error" to e.message.orEmpty(), "confidence" to null),
+                mapOf("error" to e.message.orEmpty()),
             )
         }
     }

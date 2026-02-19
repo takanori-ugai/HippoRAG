@@ -8,6 +8,13 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.Serializable
 import java.io.File
 
+/**
+ * Simple JSON-backed embedding store keyed by hashed text IDs.
+ *
+ * @param embeddingModel model used to compute embeddings (required for inserts).
+ * @param dbDirectory directory where the store file is persisted.
+ * @param namespace prefix used to generate hash IDs.
+ */
 class EmbeddingStore(
     private val embeddingModel: BaseEmbeddingModel?,
     private val dbDirectory: String,
@@ -26,6 +33,8 @@ class EmbeddingStore(
     private val hashIdToText = mutableMapOf<String, String>()
 
     private var _textToHashId: Map<String, String> = emptyMap()
+
+    /** Mapping from stored text content to hash IDs. */
     val textToHashId: Map<String, String> get() = _textToHashId
 
     init {
@@ -48,6 +57,9 @@ class EmbeddingStore(
         return nodesDict
     }
 
+    /**
+     * Returns hash IDs for [texts] that are not yet present in the store.
+     */
     fun getMissingStringHashIds(texts: List<String>): Map<String, EmbeddingRow> {
         val nodesDict = buildNodesDict(texts)
 
@@ -57,8 +69,17 @@ class EmbeddingStore(
         return missingIds.associateWith { id -> nodesDict.getValue(id) }
     }
 
+    /**
+     * Inserts [texts] into the store, computing embeddings for missing entries.
+     */
     fun insertStrings(texts: List<String>) {
-        val nodesDict = buildNodesDict(texts)
+        val cleanedTexts = texts.filter { it.isNotBlank() }
+        if (cleanedTexts.size < texts.size) {
+            logger.warn {
+                "Skipping ${texts.size - cleanedTexts.size} blank texts for namespace '$namespace' during insert."
+            }
+        }
+        val nodesDict = buildNodesDict(cleanedTexts)
 
         if (nodesDict.isEmpty()) return
 
@@ -73,30 +94,41 @@ class EmbeddingStore(
         val textsToEncode = missingIds.map { nodesDict.getValue(it).content }
         val model = embeddingModel ?: error("Embedding model is required for insertStrings")
         val missingEmbeddings = model.batchEncode(textsToEncode)
+        check(missingEmbeddings.size == textsToEncode.size) {
+            "Embedding model returned ${missingEmbeddings.size} embeddings for ${textsToEncode.size} texts"
+        }
 
-        upsert(missingIds, textsToEncode, missingEmbeddings)
+        insertNew(missingIds, textsToEncode, missingEmbeddings)
     }
 
+    /** Returns a copy of all stored rows keyed by hash ID. */
     fun getAllIdToRows(): Map<String, EmbeddingRow> = hashIdToRow.toMap()
 
+    /** Returns all stored hash IDs. */
     fun getAllIds(): List<String> = hashIds.toList()
 
+    /** Returns all stored text contents. */
     fun getAllTexts(): Set<String> = hashIdToRow.values.map { it.content }.toSet()
 
+    /** Returns the stored row for [hashId]. */
     fun getRow(hashId: String): EmbeddingRow = hashIdToRow.getValue(hashId)
 
+    /** Returns the hash ID for [text] or throws if missing. */
     fun getHashId(text: String): String = textToHashId[text] ?: error("Text not found in embedding store.")
 
+    /** Returns rows for the provided [hashIds]. */
     fun getRows(hashIds: List<String>): Map<String, EmbeddingRow> {
         if (hashIds.isEmpty()) return emptyMap()
         return hashIds.associateWith { id -> hashIdToRow.getValue(id) }
     }
 
+    /** Returns the embedding vector for [hashId]. */
     fun getEmbedding(hashId: String): DoubleArray {
         val idx = hashIdToIdx.getValue(hashId)
         return embeddings[idx]
     }
 
+    /** Returns embedding vectors for the provided [hashIds]. */
     fun getEmbeddings(hashIds: List<String>): Array<DoubleArray> {
         if (hashIds.isEmpty()) return emptyArray()
         return hashIds
@@ -106,8 +138,15 @@ class EmbeddingStore(
             }.toTypedArray()
     }
 
-    fun delete(hashIds: Collection<String>) {
-        val indices = hashIds.mapNotNull { hashIdToIdx[it] }.distinct().sortedDescending()
+    /**
+     * Deletes embeddings by [hashIds] and persists the updated store.
+     */
+    fun delete(idsToDelete: Collection<String>) {
+        val missingIds = idsToDelete.filter { it !in hashIdToIdx }
+        if (missingIds.isNotEmpty()) {
+            logger.warn { "Ignoring ${missingIds.size} unknown hash IDs during delete." }
+        }
+        val indices = idsToDelete.mapNotNull { hashIdToIdx[it] }.distinct().sortedDescending()
         for (idx in indices) {
             this.hashIds.removeAt(idx)
             this.texts.removeAt(idx)
@@ -119,14 +158,22 @@ class EmbeddingStore(
         saveData()
     }
 
-    private fun upsert(
-        hashIds: List<String>,
-        texts: List<String>,
-        embeddings: Array<DoubleArray>,
+    private fun insertNew(
+        newHashIds: List<String>,
+        newTexts: List<String>,
+        newEmbeddings: Array<DoubleArray>,
     ) {
-        this.hashIds.addAll(hashIds)
-        this.texts.addAll(texts)
-        this.embeddings.addAll(embeddings)
+        require(newHashIds.size == newTexts.size && newTexts.size == newEmbeddings.size) {
+            "Mismatched sizes: hashIds=${newHashIds.size}, texts=${newTexts.size}, embeddings=${newEmbeddings.size}"
+        }
+        val duplicateIds = newHashIds.filter { it in hashIdToIdx }
+        require(duplicateIds.isEmpty()) {
+            "Embedding store insertNew received existing hash IDs: ${duplicateIds.take(5)}" +
+                if (duplicateIds.size > 5) " (and ${duplicateIds.size - 5} more)" else ""
+        }
+        this.hashIds.addAll(newHashIds)
+        this.texts.addAll(newTexts)
+        this.embeddings.addAll(newEmbeddings)
 
         rebuildIndexes()
         logger.info { "Saving new records." }
@@ -177,7 +224,24 @@ class EmbeddingStore(
                 embeddings = embeddings.map { it.toList() },
             )
         val json = jsonWithDefaults { prettyPrint = false }
-        File(filename).writeText(json.encodeToString(EmbeddingStoreData.serializer(), data))
+        val target = File(filename)
+        val tmp = File("$filename.tmp")
+        tmp.writeText(json.encodeToString(EmbeddingStoreData.serializer(), data))
+        try {
+            java.nio.file.Files.move(
+                tmp.toPath(),
+                target.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            logger.warn { "Atomic move not supported; falling back to non-atomic replace." }
+            java.nio.file.Files.move(
+                tmp.toPath(),
+                target.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            )
+        }
         logger.info { "Saved ${hashIds.size} records to $filename" }
     }
 
@@ -192,7 +256,14 @@ class EmbeddingStore(
             hashIdToText[hashId] = text
             hashIdToRow[hashId] = EmbeddingRow(hashId = hashId, content = text)
         }
-        _textToHashId = hashIdToText.entries.associate { (k, v) -> v to k }
+        val textToHash = mutableMapOf<String, String>()
+        for ((hashId, text) in hashIdToText) {
+            if (textToHash.containsKey(text)) {
+                logger.warn { "Duplicate text key detected in embedding store; keeping last hashId." }
+            }
+            textToHash[text] = hashId
+        }
+        _textToHashId = textToHash
     }
 }
 

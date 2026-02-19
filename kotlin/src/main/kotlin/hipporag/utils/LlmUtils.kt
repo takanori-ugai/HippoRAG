@@ -1,8 +1,13 @@
 package hipporag.utils
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlin.math.min
 import kotlin.random.Random
 
+/**
+ * Filters duplicate or malformed triples to unique 3-item lists.
+ */
 fun filterInvalidTriples(triples: List<List<String>>): List<List<String>> {
     val uniqueTriples = mutableSetOf<List<String>>()
     val validTriples = mutableListOf<List<String>>()
@@ -18,30 +23,27 @@ fun filterInvalidTriples(triples: List<List<String>>): List<List<String>> {
     return validTriples
 }
 
-fun safeUnicodeDecode(content: Any): String {
-    val text =
-        when (content) {
-            is ByteArray -> content.toString(Charsets.UTF_8)
-            is String -> content
-            else -> throw IllegalArgumentException("Input must be of type ByteArray or String.")
-        }
-    if (!text.contains("\\u")) return text
+/**
+ * Decodes unicode escape sequences (e.g., `\\uXXXX`) in [content].
+ */
+fun safeUnicodeDecode(content: String): String {
+    if (!content.contains("\\u")) return content
 
-    val builder = StringBuilder(text.length)
+    val builder = StringBuilder(content.length)
     var index = 0
-    while (index < text.length) {
-        val char = text[index]
-        if (char == '\\' && index + 5 < text.length && text[index + 1] == 'u') {
-            val hex = text.substring(index + 2, index + 6)
+    while (index < content.length) {
+        val char = content[index]
+        if (char == '\\' && index + 5 < content.length && content[index + 1] == 'u') {
+            val hex = content.substring(index + 2, index + 6)
             val codeUnit = hex.toIntOrNull(16)
             if (codeUnit != null) {
                 val decoded = codeUnit.toChar()
                 if (Character.isHighSurrogate(decoded) &&
-                    index + 11 < text.length &&
-                    text[index + 6] == '\\' &&
-                    text[index + 7] == 'u'
+                    index + 11 < content.length &&
+                    content[index + 6] == '\\' &&
+                    content[index + 7] == 'u'
                 ) {
-                    val lowHex = text.substring(index + 8, index + 12)
+                    val lowHex = content.substring(index + 8, index + 12)
                     val lowUnit = lowHex.toIntOrNull(16)
                     if (lowUnit != null) {
                         val low = lowUnit.toChar()
@@ -64,8 +66,21 @@ fun safeUnicodeDecode(content: Any): String {
     return builder.toString()
 }
 
+/**
+ * Decodes unicode escape sequences (e.g., `\\uXXXX`) in [content].
+ */
+fun safeUnicodeDecode(content: ByteArray): String = safeUnicodeDecode(content.toString(Charsets.UTF_8))
+
+/**
+ * Attempts to repair truncated JSON by closing unbalanced brackets.
+ */
 fun fixBrokenGeneratedJson(jsonStr: String): String {
-    fun findUnclosed(input: String): List<Char> {
+    data class UnclosedResult(
+        val stack: List<Char>,
+        val insideString: Boolean,
+    )
+
+    fun findUnclosed(input: String): UnclosedResult {
         val unclosed = mutableListOf<Char>()
         var insideString = false
         var escapeNext = false
@@ -97,20 +112,23 @@ fun fixBrokenGeneratedJson(jsonStr: String): String {
                 }
             }
         }
-        return unclosed
+        return UnclosedResult(unclosed, insideString)
     }
 
     val unclosedOriginal = findUnclosed(jsonStr)
-    if (unclosedOriginal.isEmpty()) return jsonStr
+    if (unclosedOriginal.stack.isEmpty()) return jsonStr
 
     val lastCommaIndex = findLastCommaOutsideString(jsonStr)
     val truncated = if (lastCommaIndex != -1) jsonStr.substring(0, lastCommaIndex) else jsonStr
     val unclosed = findUnclosed(truncated)
-    if (unclosed.isEmpty()) return truncated
+    if (unclosed.stack.isEmpty()) return truncated
 
     val closingMap = mapOf('{' to '}', '[' to ']')
     val builder = StringBuilder(truncated)
-    for (openChar in unclosed.asReversed()) {
+    if (unclosed.insideString) {
+        builder.append('"')
+    }
+    for (openChar in unclosed.stack.asReversed()) {
         builder.append(closingMap.getValue(openChar))
     }
     return builder.toString()
@@ -137,13 +155,16 @@ private fun findLastCommaOutsideString(input: String): Int {
     return lastCommaIndex
 }
 
+/**
+ * Executes [block] with exponential backoff and jitter.
+ */
 @Suppress("TooGenericExceptionCaught")
 fun <T> retryWithBackoff(
     maxAttempts: Int,
     baseDelayMillis: Long = 250,
     maxDelayMillis: Long = 4000,
     jitterMillis: Long = 100,
-    retryOn: (Throwable) -> Boolean = { it is Exception },
+    retryOn: (Exception) -> Boolean = { true },
     block: () -> T,
 ): T {
     require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
@@ -151,20 +172,62 @@ fun <T> retryWithBackoff(
     while (attempt < maxAttempts) {
         try {
             return block()
-        } catch (e: Throwable) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Error) {
+            throw e
+        } catch (e: Exception) {
             if (!retryOn(e) || attempt == maxAttempts - 1) {
                 throw e
             }
-            val exponent = 1 shl attempt.coerceAtMost(10)
-            val delay = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
-            val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
-            Thread.sleep(delay + jitter)
         }
+        val exponent = 1 shl attempt.coerceAtMost(10)
+        val delay = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
+        val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
+        Thread.sleep(delay + jitter)
         attempt += 1
     }
     error("retryWithBackoff: unreachable")
 }
 
+/**
+ * Executes [block] with exponential backoff and jitter without blocking the thread.
+ */
+@Suppress("TooGenericExceptionCaught")
+suspend fun <T> retryWithBackoffSuspend(
+    maxAttempts: Int,
+    baseDelayMillis: Long = 250,
+    maxDelayMillis: Long = 4000,
+    jitterMillis: Long = 100,
+    retryOn: (Exception) -> Boolean = { true },
+    block: suspend () -> T,
+): T {
+    require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
+    var attempt = 0
+    while (attempt < maxAttempts) {
+        try {
+            return block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Error) {
+            throw e
+        } catch (e: Exception) {
+            if (!retryOn(e) || attempt == maxAttempts - 1) {
+                throw e
+            }
+        }
+        val exponent = 1 shl attempt.coerceAtMost(10)
+        val delayMillis = min(maxDelayMillis, baseDelayMillis * exponent.toLong())
+        val jitter = if (jitterMillis > 0) Random.nextLong(0, jitterMillis) else 0
+        delay(delayMillis + jitter)
+        attempt += 1
+    }
+    error("retryWithBackoffSuspend: unreachable")
+}
+
+/**
+ * Converts `{placeholder}` style strings to `${placeholder}` templates.
+ */
 fun convertFormatToTemplate(
     originalString: String,
     placeholderMapping: Map<String, String>? = null,
@@ -172,9 +235,7 @@ fun convertFormatToTemplate(
 ): String {
     val mapping = placeholderMapping ?: emptyMap()
     val statics = staticValues ?: emptyMap()
-    val pattern = Regex("\\{(\\w+)\\}") // Using Kotlin's Regex
-
-    return pattern.replace(originalString) { matchResult ->
+    return TEMPLATE_PLACEHOLDER_REGEX.replace(originalString) { matchResult ->
         val originalPlaceholder = matchResult.groupValues[1]
         when {
             statics.containsKey(originalPlaceholder) -> statics.getValue(originalPlaceholder).toString()
@@ -182,3 +243,5 @@ fun convertFormatToTemplate(
         }
     }
 }
+
+private val TEMPLATE_PLACEHOLDER_REGEX = Regex("\\{(\\w+)\\}")

@@ -2,6 +2,9 @@ package hipporag.utils
 
 import kotlin.math.sqrt
 
+/**
+ * Returns a unit-length copy of [vector], or the original if it has zero norm.
+ */
 fun normalizeVector(vector: DoubleArray): DoubleArray {
     var sumSquares = 0.0
     for (v in vector) {

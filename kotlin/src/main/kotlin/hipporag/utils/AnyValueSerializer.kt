@@ -21,8 +21,12 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
+/**
+ * JSON serializer for arbitrary Kotlin values.
+ */
 @OptIn(InternalSerializationApi::class, ExperimentalSerializationApi::class)
 object AnyValueSerializer : KSerializer<Any> {
+    /** Descriptor for arbitrary JSON values. */
     override val descriptor: SerialDescriptor =
         buildSerialDescriptor(
             "AnyValue",

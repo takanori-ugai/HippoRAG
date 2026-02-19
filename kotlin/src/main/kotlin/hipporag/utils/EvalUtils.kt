@@ -4,6 +4,9 @@ private const val PUNCTUATION_CHARS = "!\"#$%&'()*+,-./:;<>?@[\\]^_`{|}~"
 private val ARTICLES_REGEX = Regex("\\b(a|an|the)\\b")
 private val WHITESPACE_REGEX = Regex("\\s+")
 
+/**
+ * Normalizes an answer by lowercasing, removing punctuation/articles, and collapsing whitespace.
+ */
 fun normalizeAnswer(answer: String): String {
     fun removeArticles(text: String): String = ARTICLES_REGEX.replace(text, " ")
 

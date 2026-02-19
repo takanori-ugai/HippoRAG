@@ -5,6 +5,9 @@ import java.security.MessageDigest
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * Computes an MD5 hash for [content] with an optional [prefix].
+ */
 fun computeMdHashId(
     content: String,
     prefix: String = "",
@@ -15,6 +18,9 @@ fun computeMdHashId(
     return prefix + hex
 }
 
+/**
+ * Normalizes text or nested lists into lowercase alphanumeric tokens.
+ */
 fun textProcessing(text: Any): List<String> =
     when (text) {
         is List<*> -> {
@@ -36,6 +42,9 @@ fun textProcessing(text: Any): List<String> =
         }
     }
 
+/**
+ * Applies min-max normalization to [values].
+ */
 fun minMaxNormalize(values: DoubleArray): DoubleArray {
     if (values.isEmpty()) return values
     val minVal = values.minOrNull() ?: 0.0
@@ -47,6 +56,9 @@ fun minMaxNormalize(values: DoubleArray): DoubleArray {
     return DoubleArray(values.size) { idx -> (values[idx] - minVal) / range }
 }
 
+/**
+ * Extracts unique entity strings and per-chunk entity lists from triples.
+ */
 fun extractEntityNodes(chunkTriples: List<List<List<String>>>): Pair<List<String>, List<List<String>>> {
     val chunkTripleEntities = mutableListOf<List<String>>()
     for (triples in chunkTriples) {
@@ -65,6 +77,9 @@ fun extractEntityNodes(chunkTriples: List<List<List<String>>>): Pair<List<String
     return graphNodes to chunkTripleEntities
 }
 
+/**
+ * Flattens nested triples into a unique list of facts.
+ */
 fun flattenFacts(chunkTriples: List<List<List<String>>>): List<List<String>> {
     val graphTriples = mutableSetOf<List<String>>()
     for (triples in chunkTriples) {
@@ -73,6 +88,9 @@ fun flattenFacts(chunkTriples: List<List<List<String>>>): List<List<String>> {
     return graphTriples.toList()
 }
 
+/**
+ * Converts OpenIE docs into NER and triple maps keyed by chunk ID.
+ */
 fun reformatOpenieResults(
     corpusOpenieResults: List<OpenieDoc>,
 ): Pair<MutableMap<String, NerRawOutput>, MutableMap<String, TripleRawOutput>> {
@@ -99,6 +117,9 @@ fun reformatOpenieResults(
     return nerOutput to tripleOutput
 }
 
+/**
+ * Returns true if all values in [data] have the same length.
+ */
 fun allValuesOfSameLength(data: Map<*, *>): Boolean {
     val values = data.values.iterator()
     if (!values.hasNext()) return true
@@ -116,6 +137,9 @@ private fun lengthOf(value: Any?): Int? =
         else -> null
     }
 
+/**
+ * Parses common truthy/falsey strings into a boolean.
+ */
 fun stringToBool(value: Any?): Boolean {
     if (value is Boolean) return value
     val text = value?.toString()?.lowercase() ?: ""
@@ -130,6 +154,9 @@ fun stringToBool(value: Any?): Boolean {
     }
 }
 
+/**
+ * Parses a stringified triple into a list of elements.
+ */
 fun parseTripleString(value: String): List<String> {
     val cleaned =
         value

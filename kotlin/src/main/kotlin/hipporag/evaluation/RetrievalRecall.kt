@@ -3,9 +3,15 @@ package hipporag.evaluation
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.Locale
 
+/**
+ * Recall evaluator for retrieval results at multiple k values.
+ */
 class RetrievalRecall {
     private val logger = KotlinLogging.logger {}
 
+    /**
+     * Calculates recall@k metrics for each example and pooled averages.
+     */
     fun calculateMetricScores(
         goldDocs: List<List<String>>,
         retrievedDocs: List<List<String>>,

@@ -1,10 +1,11 @@
 package hipporag.utils
 
-import smile.neighbor.LSH
+import smile.math.distance.EuclideanDistance
+import smile.neighbor.LinearSearch
 import kotlin.math.sqrt
 
 /**
- * Returns up to `k` nearest neighbors per query. LSH search may return fewer than `k`.
+ * Returns up to `k` nearest neighbors per query (capped by key count).
  */
 fun retrieveKnn(
     queryIds: List<String>,
@@ -22,14 +23,13 @@ fun retrieveKnn(
 
     val keyData = keyIds.toTypedArray()
 
-    val w = 4.0
-    val lsh = LSH(normalizedKeys, keyData, w)
+    val search = LinearSearch(normalizedKeys, keyData, EuclideanDistance())
 
     val results = mutableMapOf<String, Pair<List<String>, List<Double>>>()
 
     for ((idx, query) in normalizedQueries.withIndex()) {
         val queryId = queryIds[idx]
-        val neighbors = lsh.search(query, k)
+        val neighbors = search.search(query, minOf(k, normalizedKeys.size))
         val neighborIds = mutableListOf<String>()
         val neighborScores = mutableListOf<Double>()
 

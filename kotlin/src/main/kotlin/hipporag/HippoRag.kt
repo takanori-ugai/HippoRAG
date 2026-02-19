@@ -44,6 +44,18 @@ import kotlin.math.min
 // It intentionally references external components (LLM, embeddings, OpenIE, etc.)
 // that will be implemented elsewhere in the Kotlin port.
 
+/**
+ * Core HIPPO-RAG pipeline that builds the graph index and answers queries.
+ *
+ * @param initialConfig optional base configuration to copy.
+ * @param saveDir optional override for [BaseConfig.saveDir].
+ * @param llmModelName optional override for [BaseConfig.llmName].
+ * @param llmBaseUrl optional override for [BaseConfig.llmBaseUrl].
+ * @param embeddingModelName optional override for [BaseConfig.embeddingModelName].
+ * @param embeddingBaseUrl optional override for [BaseConfig.embeddingBaseUrl].
+ * @param azureEndpoint optional Azure OpenAI endpoint override.
+ * @param azureEmbeddingEndpoint optional Azure OpenAI embedding endpoint override.
+ */
 class HippoRag(
     initialConfig: BaseConfig? = null,
     saveDir: String? = null,
@@ -54,11 +66,25 @@ class HippoRag(
     azureEndpoint: String? = null,
     azureEmbeddingEndpoint: String? = null,
 ) {
-    constructor(globalConfig: BaseConfig? = null) : this(initialConfig = globalConfig)
+    constructor(config: BaseConfig? = null) : this(initialConfig = config)
 
     private val logger = KotlinLogging.logger {}
 
-    val globalConfig: BaseConfig = (initialConfig ?: BaseConfig()).copy()
+    /** Effective configuration copied from [initialConfig] with any overrides applied. */
+    val globalConfig: BaseConfig =
+        run {
+            (initialConfig ?: BaseConfig())
+                .copy()
+                .apply {
+                    if (saveDir != null) this.saveDir = saveDir
+                    if (llmModelName != null) this.llmName = llmModelName
+                    if (embeddingModelName != null) this.embeddingModelName = embeddingModelName
+                    if (llmBaseUrl != null) this.llmBaseUrl = llmBaseUrl
+                    if (embeddingBaseUrl != null) this.embeddingBaseUrl = embeddingBaseUrl
+                    if (azureEndpoint != null) this.azureEndpoint = azureEndpoint
+                    if (azureEmbeddingEndpoint != null) this.azureEmbeddingEndpoint = azureEmbeddingEndpoint
+                }
+        }
 
     private val workingDir: String
 
@@ -104,15 +130,6 @@ class HippoRag(
     private var procTriplesToDocs: MutableMap<String, MutableSet<String>> = mutableMapOf()
 
     init {
-        // Overwrite configuration if specified
-        if (saveDir != null) globalConfig.saveDir = saveDir
-        if (llmModelName != null) globalConfig.llmName = llmModelName
-        if (embeddingModelName != null) globalConfig.embeddingModelName = embeddingModelName
-        if (llmBaseUrl != null) globalConfig.llmBaseUrl = llmBaseUrl
-        if (embeddingBaseUrl != null) globalConfig.embeddingBaseUrl = embeddingBaseUrl
-        if (azureEndpoint != null) globalConfig.azureEndpoint = azureEndpoint
-        if (azureEmbeddingEndpoint != null) globalConfig.azureEmbeddingEndpoint = azureEmbeddingEndpoint
-
         val configDump = globalConfig.toMap().entries.joinToString(",\n  ") { (k, v) -> "$k = $v" }
         logger.debug { "HippoRAG init with config:\n  $configDump\n" }
 
@@ -200,11 +217,23 @@ class HippoRag(
         }
     }
 
+    /**
+     * Runs offline OpenIE extraction over [docs] and persists results for later indexing.
+     */
     fun preOpenie(docs: List<String>) {
         logger.info { "Indexing Documents" }
         logger.info { "Performing OpenIE Offline" }
 
-        val chunks = chunkEmbeddingStore.getMissingStringHashIds(docs)
+        val cleanedDocs = docs.filter { it.isNotBlank() }
+        if (cleanedDocs.size < docs.size) {
+            logger.warn { "Skipping ${docs.size - cleanedDocs.size} blank documents during preOpenie." }
+        }
+        if (cleanedDocs.isEmpty()) {
+            logger.warn { "No non-blank documents provided for preOpenie; skipping." }
+            return
+        }
+
+        val chunks = chunkEmbeddingStore.getMissingStringHashIds(cleanedDocs)
         val (allOpenieInfo, chunkKeysToProcess) = loadExistingOpenie(chunks.keys.toList())
         val newOpenieRows = chunks.filterKeys { it in chunkKeysToProcess }
 
@@ -220,6 +249,9 @@ class HippoRag(
         logger.info { "Offline OpenIE complete. Run online indexing for future retrieval." }
     }
 
+    /**
+     * Indexes documents into the graph and embedding stores.
+     */
     fun index(docs: List<String>) {
         logger.info { "Indexing Documents" }
         logger.info { "Performing OpenIE" }
@@ -229,7 +261,16 @@ class HippoRag(
             return
         }
 
-        chunkEmbeddingStore.insertStrings(docs)
+        val cleanedDocs = docs.filter { it.isNotBlank() }
+        if (cleanedDocs.size < docs.size) {
+            logger.warn { "Skipping ${docs.size - cleanedDocs.size} blank documents during index." }
+        }
+        if (cleanedDocs.isEmpty()) {
+            logger.warn { "No non-blank documents provided for index; skipping." }
+            return
+        }
+
+        chunkEmbeddingStore.insertStrings(cleanedDocs)
         val chunkToRows = chunkEmbeddingStore.getAllIdToRows()
 
         val (allOpenieInfo, chunkKeysToProcess) = loadExistingOpenie(chunkToRows.keys.toList())
@@ -281,6 +322,9 @@ class HippoRag(
         }
     }
 
+    /**
+     * Deletes documents and related graph nodes from the index.
+     */
     fun delete(docsToDelete: List<String>) {
         if (!readyToRetrieve) {
             prepareRetrievalObjects()
@@ -351,37 +395,28 @@ class HippoRag(
         readyToRetrieve = false
     }
 
+    /**
+     * Retrieves passages for [queries] using graph-aware retrieval.
+     *
+     * @return a pair of solutions and optional recall metrics (when [goldDocs] is provided).
+     */
     fun retrieve(
         queries: List<String>,
         numToRetrieve: Int? = null,
         goldDocs: List<List<String>>? = null,
-    ): Pair<List<QuerySolution>, Map<String, Double>?> {
-        val retrieveStart = nowSeconds()
+    ): Pair<List<QuerySolution>, Map<String, Double>?> =
+        retrieveInternal(
+            queries = queries,
+            numToRetrieve = numToRetrieve,
+            goldDocs = goldDocs,
+            perQueryRetrieval = { query ->
+                val rerankStart = nowSeconds()
+                val queryFactScores = getFactScores(query)
+                val (topKFactIndices, topKFacts, _) = rerankFacts(query, queryFactScores)
+                val rerankEnd = nowSeconds()
 
-        pprTimeSeconds = 0.0
-        rerankTimeSeconds = 0.0
-        allRetrievalTimeSeconds = 0.0
+                rerankTimeSeconds += rerankEnd - rerankStart
 
-        val k = numToRetrieve ?: globalConfig.retrievalTopK
-        val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
-
-        if (!readyToRetrieve) {
-            prepareRetrievalObjects()
-        }
-
-        getQueryEmbeddings(queries)
-
-        val retrievalResults = mutableListOf<QuerySolution>()
-
-        for (query in queries) {
-            val rerankStart = nowSeconds()
-            val queryFactScores = getFactScores(query)
-            val (topKFactIndices, topKFacts, _) = rerankFacts(query, queryFactScores)
-            val rerankEnd = nowSeconds()
-
-            rerankTimeSeconds += rerankEnd - rerankStart
-
-            val (sortedDocIds, sortedDocScores) =
                 if (topKFacts.isEmpty()) {
                     logger.info { "No facts found after reranking, return DPR results" }
                     densePassageRetrieval(query)
@@ -395,46 +430,22 @@ class HippoRag(
                         passageNodeWeight = globalConfig.passageNodeWeight,
                     )
                 }
-
-            val topKDocs =
-                sortedDocIds.take(k).map { idx ->
-                    chunkEmbeddingStore.getRow(passageNodeKeys[idx]).content
+            },
+            logTimings = {
+                logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
+                logger.info { "Total Recognition Memory Time ${String.format(Locale.US, "%.2f", rerankTimeSeconds)}s" }
+                logger.info { "Total PPR Time ${String.format(Locale.US, "%.2f", pprTimeSeconds)}s" }
+                logger.info {
+                    "Total Misc Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds - (rerankTimeSeconds + pprTimeSeconds))}s"
                 }
+            },
+        )
 
-            retrievalResults.add(
-                QuerySolution(
-                    question = query,
-                    docs = topKDocs,
-                    docScores = sortedDocScores.take(k).toDoubleArray(),
-                ),
-            )
-        }
-
-        val retrieveEnd = nowSeconds()
-        allRetrievalTimeSeconds += retrieveEnd - retrieveStart
-
-        logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
-        logger.info { "Total Recognition Memory Time ${String.format(Locale.US, "%.2f", rerankTimeSeconds)}s" }
-        logger.info { "Total PPR Time ${String.format(Locale.US, "%.2f", pprTimeSeconds)}s" }
-        logger.info {
-            "Total Misc Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds - (rerankTimeSeconds + pprTimeSeconds))}s"
-        }
-
-        if (goldDocs != null && retrievalRecallEvaluator != null) {
-            val kList = listOf(1, 2, 5, 10, 20, 30, 50, 100, 150, 200)
-            val (overall, _) =
-                retrievalRecallEvaluator.calculateMetricScores(
-                    goldDocs = goldDocs,
-                    retrievedDocs = retrievalResults.map { it.docs },
-                    kList = kList,
-                )
-            logger.info { "Evaluation results for retrieval: $overall" }
-            return retrievalResults to overall
-        }
-
-        return retrievalResults to null
-    }
-
+    /**
+     * Runs retrieval + LLM QA for [queries].
+     *
+     * @return a [RagQaResult] with answers and optional evaluation metrics.
+     */
     fun ragQa(
         queries: List<String>,
         goldDocs: List<List<String>>? = null,
@@ -453,6 +464,9 @@ class HippoRag(
         )
     }
 
+    /**
+     * Runs LLM QA over precomputed retrieval [queries].
+     */
     fun ragQaWithSolutions(
         queries: List<QuerySolution>,
         goldDocs: List<List<String>>? = null,
@@ -496,15 +510,16 @@ class HippoRag(
                 }
             logger.info { "Evaluation results for QA: $overallQaResults" }
 
-            qaSolutions.forEachIndexed { idx, q ->
-                q.goldAnswers = goldAnswers[idx].toMutableList()
-                if (goldDocs != null) {
-                    q.goldDocs = goldDocs[idx].toMutableList()
+            val qaSolutionsWithGold =
+                qaSolutions.mapIndexed { idx, solution ->
+                    solution.copy(
+                        goldAnswers = goldAnswers[idx].toMutableList(),
+                        goldDocs = goldDocs?.getOrNull(idx)?.toMutableList(),
+                    )
                 }
-            }
 
             return RagQaResult(
-                solutions = qaSolutions,
+                solutions = qaSolutionsWithGold,
                 responseMessages = allResponseMessage,
                 metadata = allMetadata,
                 overallRetrievalResult = overallRetrievalResult,
@@ -521,66 +536,32 @@ class HippoRag(
         )
     }
 
+    /**
+     * Retrieves passages using dense passage retrieval (DPR) only.
+     *
+     * @return a pair of solutions and optional recall metrics (when [goldDocs] is provided).
+     */
     fun retrieveDpr(
         queries: List<String>,
         numToRetrieve: Int? = null,
         goldDocs: List<List<String>>? = null,
-    ): Pair<List<QuerySolution>, Map<String, Double>?> {
-        val retrieveStart = nowSeconds()
+    ): Pair<List<QuerySolution>, Map<String, Double>?> =
+        retrieveInternal(
+            queries = queries,
+            numToRetrieve = numToRetrieve,
+            goldDocs = goldDocs,
+            perQueryRetrieval = { query ->
+                logger.info { "Performing DPR retrieval for query." }
+                densePassageRetrieval(query)
+            },
+            logTimings = {
+                logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
+            },
+        )
 
-        pprTimeSeconds = 0.0
-        rerankTimeSeconds = 0.0
-        allRetrievalTimeSeconds = 0.0
-
-        val k = numToRetrieve ?: globalConfig.retrievalTopK
-        val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
-
-        if (!readyToRetrieve) {
-            prepareRetrievalObjects()
-        }
-
-        getQueryEmbeddings(queries)
-
-        val retrievalResults = mutableListOf<QuerySolution>()
-
-        for (query in queries) {
-            logger.info { "Performing DPR retrieval for query." }
-            val (sortedDocIds, sortedDocScores) = densePassageRetrieval(query)
-
-            val topKDocs =
-                sortedDocIds.take(k).map { idx ->
-                    chunkEmbeddingStore.getRow(passageNodeKeys[idx]).content
-                }
-
-            retrievalResults.add(
-                QuerySolution(
-                    question = query,
-                    docs = topKDocs,
-                    docScores = sortedDocScores.take(k).toDoubleArray(),
-                ),
-            )
-        }
-
-        val retrieveEnd = nowSeconds()
-        allRetrievalTimeSeconds += retrieveEnd - retrieveStart
-
-        logger.info { "Total Retrieval Time ${String.format(Locale.US, "%.2f", allRetrievalTimeSeconds)}s" }
-
-        if (goldDocs != null && retrievalRecallEvaluator != null) {
-            val kList = listOf(1, 2, 5, 10, 20, 30, 50, 100, 150, 200)
-            val (overall, _) =
-                retrievalRecallEvaluator.calculateMetricScores(
-                    goldDocs = goldDocs,
-                    retrievedDocs = retrievalResults.map { it.docs },
-                    kList = kList,
-                )
-            logger.info { "Evaluation results for retrieval: $overall" }
-            return retrievalResults to overall
-        }
-
-        return retrievalResults to null
-    }
-
+    /**
+     * Runs DPR-only retrieval + LLM QA for [queries].
+     */
     fun ragQaDpr(
         queries: List<String>,
         goldDocs: List<List<String>>? = null,
@@ -599,6 +580,9 @@ class HippoRag(
         )
     }
 
+    /**
+     * Runs LLM QA over precomputed DPR retrieval [queries].
+     */
     fun ragQaDprWithSolutions(
         queries: List<QuerySolution>,
         goldDocs: List<List<String>>? = null,
@@ -611,6 +595,11 @@ class HippoRag(
             overallRetrievalResult = null,
         )
 
+    /**
+     * Executes QA prompts over retrieved passages.
+     *
+     * @return updated solutions, response messages, and per-response metadata.
+     */
     fun qa(queries: List<QuerySolution>): Triple<List<QuerySolution>, List<String>, List<Map<String, Any?>>> {
         val allQaMessages = mutableListOf<List<Message>>()
 
@@ -655,13 +644,12 @@ class HippoRag(
         val allResponseMessage = allQaResults.map { it.response }
         val allMetadata = allQaResults.map { it.metadata }
 
-        val querySolutions = mutableListOf<QuerySolution>()
-        queries.forEachIndexed { idx, querySolution ->
-            val responseContent = allResponseMessage[idx]
-            val predAns = responseContent.substringAfter("Answer:", responseContent).trim()
-            querySolution.answer = predAns
-            querySolutions.add(querySolution)
-        }
+        val querySolutions =
+            queries.mapIndexed { idx, querySolution ->
+                val responseContent = allResponseMessage[idx]
+                val predAns = responseContent.substringAfter("Answer:", responseContent).trim()
+                querySolution.copy(answer = predAns)
+            }
 
         return Triple(querySolutions, allResponseMessage, allMetadata)
     }
@@ -801,7 +789,7 @@ class HippoRag(
         chunksToSave: Map<String, EmbeddingRow>,
         nerResultsDict: Map<String, NerRawOutput>,
         tripleResultsDict: Map<String, TripleRawOutput>,
-    ): List<OpenieDoc> {
+    ) {
         for ((chunkKey, row) in chunksToSave) {
             val passage = row.content
             val nerOutput = nerResultsDict[chunkKey]
@@ -818,8 +806,81 @@ class HippoRag(
                 )
             allOpenieInfo.add(chunkOpenieInfo)
         }
+    }
 
-        return allOpenieInfo
+    private fun retrieveInternal(
+        queries: List<String>,
+        numToRetrieve: Int?,
+        goldDocs: List<List<String>>?,
+        perQueryRetrieval: (String) -> Pair<List<Int>, DoubleArray>,
+        logTimings: () -> Unit,
+    ): Pair<List<QuerySolution>, Map<String, Double>?> {
+        val retrieveStart = nowSeconds()
+
+        pprTimeSeconds = 0.0
+        rerankTimeSeconds = 0.0
+        allRetrievalTimeSeconds = 0.0
+
+        check(embeddingModel != null) {
+            "Embedding model is required for retrieval. If you used openieMode='offline', " +
+                "set an embedding model or switch to online mode before calling retrieve()."
+        }
+
+        val k = numToRetrieve ?: globalConfig.retrievalTopK
+        val retrievalRecallEvaluator = if (goldDocs != null) RetrievalRecall() else null
+
+        if (!readyToRetrieve) {
+            prepareRetrievalObjects()
+        }
+
+        getQueryEmbeddings(queries)
+
+        val retrievalResults = mutableListOf<QuerySolution>()
+
+        for (query in queries) {
+            val (sortedDocIds, sortedDocScores) = perQueryRetrieval(query)
+            val docPairs = sortedDocIds.zip(sortedDocScores.toList())
+            val validPairs = docPairs.filter { (idx, _) -> idx in passageNodeKeys.indices }
+            if (validPairs.size < docPairs.size) {
+                logger.error {
+                    "Retrieval returned ${docPairs.size - validPairs.size} out-of-range indices; " +
+                        "passageNodeKeys size=${passageNodeKeys.size}"
+                }
+            }
+
+            val topKDocs =
+                validPairs.take(k).map { (idx, _) ->
+                    chunkEmbeddingStore.getRow(passageNodeKeys[idx]).content
+                }
+            val topKScores = validPairs.take(k).map { it.second }.toDoubleArray()
+
+            retrievalResults.add(
+                QuerySolution(
+                    question = query,
+                    docs = topKDocs,
+                    docScores = topKScores,
+                ),
+            )
+        }
+
+        val retrieveEnd = nowSeconds()
+        allRetrievalTimeSeconds += retrieveEnd - retrieveStart
+
+        logTimings()
+
+        if (goldDocs != null && retrievalRecallEvaluator != null) {
+            val kList = listOf(1, 2, 5, 10, 20, 30, 50, 100, 150, 200)
+            val (overall, _) =
+                retrievalRecallEvaluator.calculateMetricScores(
+                    goldDocs = goldDocs,
+                    retrievedDocs = retrievalResults.map { it.docs },
+                    kList = kList,
+                )
+            logger.info { "Evaluation results for retrieval: $overall" }
+            return retrievalResults to overall
+        }
+
+        return retrievalResults to null
     }
 
     private fun saveOpenieResults(allOpenieInfo: List<OpenieDoc>) {
@@ -1292,6 +1353,10 @@ class HippoRag(
             return dprSortedDocIds to dprSortedDocScores
         }
 
+        logger.info {
+            "Running PPR with ${nodeWeights.size} nodes and total weight " +
+                String.format(Locale.US, "%.6f", nodeWeights.sum())
+        }
         val pprStart = nowSeconds()
         val (pprSortedDocIds, pprSortedDocScores) = runPpr(nodeWeights, damping = globalConfig.damping)
         val pprEnd = nowSeconds()
