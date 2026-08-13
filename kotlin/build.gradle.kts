@@ -38,7 +38,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     implementation("io.github.oshai:kotlin-logging-jvm:8.0.4")
-    implementation("com.github.haifengl:smile-core:4.4.2")
+    implementation("com.github.haifengl:smile-core:6.2.5")
 
     // LangChain4j dependencies
     implementation("dev.langchain4j:langchain4j:1.18.0")
